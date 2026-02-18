@@ -102,6 +102,32 @@ const apiElements: ApiElement[] = [
   { id: 'mw-cors', label: 'CORS Config', icon: Globe, category: 'Middleware' },
   { id: 'mw-validation', label: 'Validation', icon: Shield, category: 'Middleware' },
   { id: 'mw-cache', label: 'Cache Control', icon: Zap, category: 'Middleware' },
+
+  // Triggers
+  { id: 'trigger-cron', label: 'Cron Job', icon: Clock, category: 'Triggers', createEndpoint: { method: 'POST', path: '/cron/task-name', summary: 'Scheduled cron job', tag: 'Triggers', requestBody: '{\n  "schedule": "*/5 * * * *",\n  "timezone": "UTC"\n}' } },
+  { id: 'trigger-webhook', label: 'Webhook', icon: Zap, category: 'Triggers', createEndpoint: { method: 'POST', path: '/webhooks/incoming', summary: 'Incoming webhook handler', tag: 'Triggers', requestBody: '{\n  "event": "string",\n  "payload": {}\n}' } },
+  { id: 'trigger-event', label: 'Event Listener', icon: ArrowDown, category: 'Triggers', createEndpoint: { method: 'POST', path: '/events/on-event', summary: 'Event-driven trigger', tag: 'Triggers', requestBody: '{\n  "eventType": "string",\n  "source": "string",\n  "data": {}\n}' } },
+  { id: 'trigger-queue', label: 'Message Queue', icon: Layers, category: 'Triggers', createEndpoint: { method: 'POST', path: '/queue/process', summary: 'Queue message processor', tag: 'Triggers', requestBody: '{\n  "queueName": "string",\n  "message": {},\n  "retryCount": 3\n}' } },
+  { id: 'trigger-sse', label: 'Server-Sent Events', icon: ArrowRight, category: 'Triggers', createEndpoint: { method: 'GET', path: '/sse/stream', summary: 'SSE event stream', tag: 'Triggers' } },
+
+  // Database Operations
+  { id: 'db-query', label: 'DB Query', icon: Database, category: 'Database', createEndpoint: { method: 'POST', path: '/db/query', summary: 'Execute database query', tag: 'Database', requestBody: '{\n  "table": "string",\n  "filter": {},\n  "select": ["*"],\n  "limit": 50\n}' } },
+  { id: 'db-insert', label: 'DB Insert', icon: Database, category: 'Database', createEndpoint: { method: 'POST', path: '/db/insert', summary: 'Insert record', tag: 'Database', requestBody: '{\n  "table": "string",\n  "data": {}\n}' } },
+  { id: 'db-update', label: 'DB Update', icon: Database, category: 'Database', createEndpoint: { method: 'PUT', path: '/db/update/:id', summary: 'Update record', tag: 'Database', requestBody: '{\n  "table": "string",\n  "data": {},\n  "where": {}\n}' } },
+  { id: 'db-delete', label: 'DB Delete', icon: Database, category: 'Database', createEndpoint: { method: 'DELETE', path: '/db/delete/:id', summary: 'Delete record', tag: 'Database' } },
+  { id: 'db-migration', label: 'DB Migration', icon: Database, category: 'Database', createEndpoint: { method: 'POST', path: '/db/migrate', summary: 'Run migration', tag: 'Database', requestBody: '{\n  "version": "string",\n  "up": "SQL string",\n  "down": "SQL string"\n}' } },
+
+  // Integrations
+  { id: 'int-email', label: 'Send Email', icon: Send, category: 'Integrations', createEndpoint: { method: 'POST', path: '/integrations/email', summary: 'Send email notification', tag: 'Integrations', requestBody: '{\n  "to": "string",\n  "subject": "string",\n  "body": "string",\n  "html": true\n}' } },
+  { id: 'int-sms', label: 'Send SMS', icon: Send, category: 'Integrations', createEndpoint: { method: 'POST', path: '/integrations/sms', summary: 'Send SMS message', tag: 'Integrations', requestBody: '{\n  "to": "+1234567890",\n  "message": "string"\n}' } },
+  { id: 'int-payment', label: 'Payment', icon: Shield, category: 'Integrations', createEndpoint: { method: 'POST', path: '/integrations/payment', summary: 'Process payment', tag: 'Integrations', requestBody: '{\n  "amount": 0,\n  "currency": "USD",\n  "method": "card",\n  "token": "string"\n}' } },
+  { id: 'int-storage', label: 'File Storage', icon: Database, category: 'Integrations', createEndpoint: { method: 'POST', path: '/integrations/storage/upload', summary: 'Upload to storage', tag: 'Integrations', requestBody: '{\n  "bucket": "string",\n  "path": "string",\n  "file": "(binary)"\n}' } },
+  { id: 'int-push', label: 'Push Notification', icon: Zap, category: 'Integrations', createEndpoint: { method: 'POST', path: '/integrations/push', summary: 'Send push notification', tag: 'Integrations', requestBody: '{\n  "userId": "string",\n  "title": "string",\n  "body": "string",\n  "data": {}\n}' } },
+
+  // Logging & Monitoring
+  { id: 'log-error', label: 'Error Logger', icon: AlertCircle, category: 'Logging', createEndpoint: { method: 'POST', path: '/logs/error', summary: 'Log error event', tag: 'Logging', requestBody: '{\n  "level": "error",\n  "message": "string",\n  "stack": "string",\n  "context": {}\n}' } },
+  { id: 'log-audit', label: 'Audit Trail', icon: Shield, category: 'Logging', createEndpoint: { method: 'POST', path: '/logs/audit', summary: 'Record audit event', tag: 'Logging', requestBody: '{\n  "action": "string",\n  "userId": "string",\n  "resource": "string",\n  "details": {}\n}' } },
+  { id: 'log-health', label: 'Health Check', icon: CheckCircle, category: 'Logging', createEndpoint: { method: 'GET', path: '/health', summary: 'Service health check', tag: 'Logging' } },
 ];
 
 const categories = [...new Set(apiElements.map(e => e.category))];
