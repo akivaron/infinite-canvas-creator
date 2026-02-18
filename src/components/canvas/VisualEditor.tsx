@@ -67,43 +67,41 @@ export const VisualEditor = ({ node, onClose }: Props) => {
         .ve-link-mode .ve-selected::after { background: hsl(150 60% 50%); content: '🔗 ' attr(data-ve-tag); }
         ${linkHighlightCSS}
         * { position: relative; }
+        .ve-drop-indicator { outline: 3px dashed hsl(239 84% 67% / 0.7) !important; outline-offset: 4px; background: hsl(239 84% 67% / 0.04) !important; }
+        .ve-resize-handle {
+          position: absolute; width: 10px; height: 10px; background: hsl(239 84% 67%);
+          border: 2px solid white; border-radius: 2px; z-index: 100000; cursor: nwse-resize;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .ve-resize-handle-br { bottom: -5px; right: -5px; cursor: nwse-resize; }
+        .ve-resize-handle-r { top: 50%; right: -5px; transform: translateY(-50%); cursor: ew-resize; width: 8px; height: 20px; border-radius: 3px; }
+        .ve-resize-handle-b { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; height: 8px; width: 20px; border-radius: 3px; }
+        .ve-moving { cursor: move !important; opacity: 0.85; }
       </style>
     </head>`).replace('</body>', `
       <script>
         let selected = null;
         let tool = 'select';
+        let resizeHandles = [];
+        let isDragging = false;
+        let dragStartX = 0, dragStartY = 0;
+        let elStartLeft = 0, elStartTop = 0;
 
         function getFullStyles(el) {
           const cs = getComputedStyle(el);
           return {
-            color: cs.color,
-            fontSize: cs.fontSize,
-            fontWeight: cs.fontWeight,
-            fontStyle: cs.fontStyle,
-            textDecoration: cs.textDecoration,
-            textAlign: cs.textAlign,
-            backgroundColor: cs.backgroundColor,
-            padding: cs.padding,
-            paddingTop: cs.paddingTop,
-            paddingRight: cs.paddingRight,
-            paddingBottom: cs.paddingBottom,
-            paddingLeft: cs.paddingLeft,
-            margin: cs.margin,
-            marginTop: cs.marginTop,
-            marginRight: cs.marginRight,
-            marginBottom: cs.marginBottom,
-            marginLeft: cs.marginLeft,
-            borderRadius: cs.borderRadius,
-            borderWidth: cs.borderWidth,
-            borderColor: cs.borderColor,
-            borderStyle: cs.borderStyle,
-            width: cs.width,
-            height: cs.height,
-            display: cs.display,
-            opacity: cs.opacity,
-            letterSpacing: cs.letterSpacing,
-            lineHeight: cs.lineHeight,
-            textTransform: cs.textTransform,
+            color: cs.color, fontSize: cs.fontSize, fontWeight: cs.fontWeight,
+            fontStyle: cs.fontStyle, textDecoration: cs.textDecoration, textAlign: cs.textAlign,
+            backgroundColor: cs.backgroundColor, padding: cs.padding,
+            paddingTop: cs.paddingTop, paddingRight: cs.paddingRight,
+            paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft,
+            margin: cs.margin, marginTop: cs.marginTop, marginRight: cs.marginRight,
+            marginBottom: cs.marginBottom, marginLeft: cs.marginLeft,
+            borderRadius: cs.borderRadius, borderWidth: cs.borderWidth,
+            borderColor: cs.borderColor, borderStyle: cs.borderStyle,
+            width: cs.width, height: cs.height, display: cs.display,
+            opacity: cs.opacity, letterSpacing: cs.letterSpacing,
+            lineHeight: cs.lineHeight, textTransform: cs.textTransform,
           };
         }
 
@@ -118,6 +116,82 @@ export const VisualEditor = ({ node, onClose }: Props) => {
           return buildSelector(parent) + ' > ' + tag + ':nth-child(' + idx + ')';
         }
 
+        function removeResizeHandles() {
+          resizeHandles.forEach(h => h.remove());
+          resizeHandles = [];
+        }
+
+        function addResizeHandles(el) {
+          removeResizeHandles();
+          if (el === document.body || el === document.documentElement) return;
+          const types = [
+            { cls: 've-resize-handle-br', cursor: 'nwse-resize', resizeW: true, resizeH: true },
+            { cls: 've-resize-handle-r', cursor: 'ew-resize', resizeW: true, resizeH: false },
+            { cls: 've-resize-handle-b', cursor: 'ns-resize', resizeW: false, resizeH: true },
+          ];
+          types.forEach(t => {
+            const h = document.createElement('div');
+            h.className = 've-resize-handle ' + t.cls;
+            h.addEventListener('mousedown', (e) => {
+              e.stopPropagation(); e.preventDefault();
+              const startX = e.clientX, startY = e.clientY;
+              const startW = el.offsetWidth, startH = el.offsetHeight;
+              const onMove = (ev) => {
+                if (t.resizeW) el.style.width = Math.max(20, startW + ev.clientX - startX) + 'px';
+                if (t.resizeH) el.style.height = Math.max(20, startH + ev.clientY - startY) + 'px';
+                window.parent.postMessage({ type: 'stylesUpdated', styles: getFullStyles(el) }, '*');
+              };
+              const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                addResizeHandles(el);
+                window.parent.postMessage({ type: 'contentChanged' }, '*');
+              };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            });
+            el.appendChild(h);
+            resizeHandles.push(h);
+          });
+        }
+
+        // Drag & Drop from panel
+        document.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          const el = document.elementFromPoint(e.clientX, e.clientY);
+          document.querySelectorAll('.ve-drop-indicator').forEach(d => d.classList.remove('ve-drop-indicator'));
+          if (el && el !== document.documentElement) {
+            (el === document.body ? el : el).classList.add('ve-drop-indicator');
+          }
+        });
+        document.addEventListener('dragleave', (e) => {
+          e.target?.classList?.remove('ve-drop-indicator');
+        });
+        document.addEventListener('drop', (e) => {
+          e.preventDefault();
+          document.querySelectorAll('.ve-drop-indicator').forEach(d => d.classList.remove('ve-drop-indicator'));
+          const raw = e.dataTransfer.getData('application/ve-element');
+          if (!raw) return;
+          try {
+            const data = JSON.parse(raw);
+            const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+            const parent = (dropTarget && dropTarget !== document.body && dropTarget !== document.documentElement) ? dropTarget : document.body;
+            if (data.customHtml) {
+              const wrapper = document.createElement('div');
+              wrapper.innerHTML = data.customHtml;
+              while (wrapper.firstChild) {
+                if (parent === dropTarget && parent !== document.body) parent.parentElement.insertBefore(wrapper.firstChild, parent.nextSibling);
+                else parent.appendChild(wrapper.firstChild);
+              }
+            } else {
+              window.parent.postMessage({ type: 'requestInsert', tag: data.tag }, '*');
+              return;
+            }
+            window.parent.postMessage({ type: 'contentChanged' }, '*');
+          } catch(err) {}
+        });
+
         window.addEventListener('message', (e) => {
           if (e.data.type === 'setTool') {
             tool = e.data.tool;
@@ -125,9 +199,9 @@ export const VisualEditor = ({ node, onClose }: Props) => {
             else document.body.classList.remove('ve-link-mode');
           }
           if (e.data.type === 'getContent') {
-            // Clean up editor classes before returning
-            if (selected) { selected.classList.remove('ve-selected'); selected.removeAttribute('data-ve-tag'); }
-            document.querySelectorAll('.ve-hover').forEach(el => el.classList.remove('ve-hover'));
+            removeResizeHandles();
+            if (selected) { selected.classList.remove('ve-selected'); selected.removeAttribute('data-ve-tag'); selected.classList.remove('ve-moving'); }
+            document.querySelectorAll('.ve-hover,.ve-drop-indicator').forEach(el => { el.classList.remove('ve-hover'); el.classList.remove('ve-drop-indicator'); });
             window.parent.postMessage({ type: 'content', html: document.documentElement.outerHTML }, '*');
           }
           if (e.data.type === 'setStyle') {
@@ -138,15 +212,11 @@ export const VisualEditor = ({ node, onClose }: Props) => {
             }
           }
           if (e.data.type === 'setText') {
-            if (selected) {
-              selected.textContent = e.data.value;
-              window.parent.postMessage({ type: 'contentChanged' }, '*');
-            }
+            if (selected) { selected.textContent = e.data.value; window.parent.postMessage({ type: 'contentChanged' }, '*'); }
           }
           if (e.data.type === 'deleteElement') {
             if (selected && selected !== document.body && selected !== document.documentElement) {
-              selected.remove();
-              selected = null;
+              removeResizeHandles(); selected.remove(); selected = null;
               window.parent.postMessage({ type: 'elementDeselected' }, '*');
               window.parent.postMessage({ type: 'contentChanged' }, '*');
             }
@@ -154,8 +224,8 @@ export const VisualEditor = ({ node, onClose }: Props) => {
           if (e.data.type === 'duplicateElement') {
             if (selected && selected.parentElement) {
               const clone = selected.cloneNode(true);
-              clone.classList.remove('ve-selected');
-              clone.removeAttribute('data-ve-tag');
+              clone.classList.remove('ve-selected'); clone.removeAttribute('data-ve-tag');
+              clone.querySelectorAll('.ve-resize-handle').forEach(h => h.remove());
               selected.parentElement.insertBefore(clone, selected.nextSibling);
               window.parent.postMessage({ type: 'contentChanged' }, '*');
             }
@@ -164,7 +234,6 @@ export const VisualEditor = ({ node, onClose }: Props) => {
             const tag = e.data.tag;
             const customHtml = e.data.customHtml;
             const target = selected && selected !== document.body ? selected.parentElement || document.body : document.body;
-            
             if (customHtml) {
               const wrapper = document.createElement('div');
               wrapper.innerHTML = customHtml;
@@ -196,44 +265,112 @@ export const VisualEditor = ({ node, onClose }: Props) => {
         document.addEventListener('mouseover', (e) => {
           if (tool !== 'select' && tool !== 'text' && tool !== 'link') return;
           const el = e.target;
-          if (el === document.body || el === document.documentElement) return;
+          if (el === document.body || el === document.documentElement || el.classList.contains('ve-resize-handle')) return;
           el.classList.add('ve-hover');
         });
+        document.addEventListener('mouseout', (e) => { e.target.classList.remove('ve-hover'); });
 
-        document.addEventListener('mouseout', (e) => {
-          e.target.classList.remove('ve-hover');
+        document.addEventListener('mousedown', (e) => {
+          if (e.target.classList.contains('ve-resize-handle')) return;
+          if (tool !== 'move' && tool !== 'select') return;
+          const el = e.target;
+          if (el === document.body || el === document.documentElement) return;
+          if (tool === 'move') {
+            e.preventDefault();
+            isDragging = true;
+            dragStartX = e.clientX; dragStartY = e.clientY;
+            const cs = getComputedStyle(el);
+            el.style.position = el.style.position === 'absolute' ? 'absolute' : 'relative';
+            elStartLeft = parseInt(cs.left) || 0;
+            elStartTop = parseInt(cs.top) || 0;
+            el.classList.add('ve-moving');
+          }
+        });
+        document.addEventListener('mousemove', (e) => {
+          if (!isDragging || !selected) return;
+          selected.style.left = (elStartLeft + e.clientX - dragStartX) + 'px';
+          selected.style.top = (elStartTop + e.clientY - dragStartY) + 'px';
+        });
+        document.addEventListener('mouseup', (e) => {
+          if (isDragging && selected) {
+            selected.classList.remove('ve-moving');
+            isDragging = false;
+            addResizeHandles(selected);
+            window.parent.postMessage({ type: 'stylesUpdated', styles: getFullStyles(selected) }, '*');
+            window.parent.postMessage({ type: 'contentChanged' }, '*');
+          }
         });
 
         document.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
+          if (e.target.classList.contains('ve-resize-handle')) return;
+          e.preventDefault(); e.stopPropagation();
           const el = e.target;
           if (el === document.body || el === document.documentElement) return;
 
-          if (selected) {
-            selected.classList.remove('ve-selected');
-            selected.contentEditable = 'false';
-          }
+          if (selected) { selected.classList.remove('ve-selected'); selected.contentEditable = 'false'; }
+          removeResizeHandles();
 
           selected = el;
           el.classList.add('ve-selected');
           el.setAttribute('data-ve-tag', el.tagName.toLowerCase());
+          addResizeHandles(el);
 
-          if (tool === 'text') {
-            el.contentEditable = 'true';
-            el.focus();
-          }
-
-          const selector = buildSelector(el);
+          if (tool === 'text') { el.contentEditable = 'true'; el.focus(); }
 
           window.parent.postMessage({
-            type: 'elementSelected',
-            tag: el.tagName.toLowerCase(),
-            text: el.textContent?.slice(0, 200),
-            selector: selector,
+            type: 'elementSelected', tag: el.tagName.toLowerCase(),
+            text: el.textContent?.slice(0, 200), selector: buildSelector(el),
             styles: getFullStyles(el),
           }, '*');
         }, true);
+
+        // Keyboard: Arrow keys to move, Shift+Arrow to resize, Delete to remove
+        document.addEventListener('keydown', (e) => {
+          if (!selected || selected === document.body || selected === document.documentElement) return;
+          if (selected.contentEditable === 'true' && tool === 'text') return;
+          const step = e.ctrlKey ? 10 : 1;
+          const cs = getComputedStyle(selected);
+
+          if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (tool !== 'text') {
+              e.preventDefault();
+              removeResizeHandles(); selected.remove(); selected = null;
+              window.parent.postMessage({ type: 'elementDeselected' }, '*');
+              window.parent.postMessage({ type: 'contentChanged' }, '*');
+              return;
+            }
+          }
+
+          if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+            if (e.shiftKey) {
+              // Resize
+              let w = parseInt(cs.width) || selected.offsetWidth;
+              let h = parseInt(cs.height) || selected.offsetHeight;
+              if (e.key === 'ArrowRight') w += step;
+              if (e.key === 'ArrowLeft') w = Math.max(20, w - step);
+              if (e.key === 'ArrowDown') h += step;
+              if (e.key === 'ArrowUp') h = Math.max(20, h - step);
+              selected.style.width = w + 'px';
+              selected.style.height = h + 'px';
+            } else {
+              // Move
+              selected.style.position = selected.style.position === 'absolute' ? 'absolute' : 'relative';
+              let left = parseInt(cs.left) || 0;
+              let top = parseInt(cs.top) || 0;
+              if (e.key === 'ArrowLeft') left -= step;
+              if (e.key === 'ArrowRight') left += step;
+              if (e.key === 'ArrowUp') top -= step;
+              if (e.key === 'ArrowDown') top += step;
+              selected.style.left = left + 'px';
+              selected.style.top = top + 'px';
+            }
+            removeResizeHandles();
+            addResizeHandles(selected);
+            window.parent.postMessage({ type: 'stylesUpdated', styles: getFullStyles(selected) }, '*');
+            window.parent.postMessage({ type: 'contentChanged' }, '*');
+          }
+        });
 
         document.addEventListener('input', (e) => {
           window.parent.postMessage({ type: 'contentChanged' }, '*');
@@ -267,6 +404,9 @@ export const VisualEditor = ({ node, onClose }: Props) => {
       }
       if (e.data.type === 'contentChanged') {
         setIsDirty(true);
+      }
+      if (e.data.type === 'requestInsert') {
+        iframeRef.current?.contentWindow?.postMessage({ type: 'insertElement', tag: e.data.tag }, '*');
       }
       if (e.data.type === 'content') {
         const newContent = e.data.html;
@@ -585,6 +725,8 @@ export const VisualEditor = ({ node, onClose }: Props) => {
             <>
               <div className="h-3 w-px bg-border" />
               <span className="text-primary truncate max-w-[200px]">{selectedElement}</span>
+              <div className="h-3 w-px bg-border" />
+              <span className="text-muted-foreground/50">↑↓←→ Move · Shift+↑↓←→ Resize · Ctrl=10px · Del Remove</span>
             </>
           )}
         </div>
