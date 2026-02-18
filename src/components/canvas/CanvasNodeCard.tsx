@@ -545,11 +545,9 @@ export const CanvasNodeCard = ({ node }: Props) => {
       </div>
 
       {/* Visual Editor overlay */}
-      <AnimatePresence>
-        {showVisualEditor && (
-          <VisualEditor node={node} onClose={() => setShowVisualEditor(false)} />
-        )}
-      </AnimatePresence>
+      {showVisualEditor && (
+        <VisualEditor node={node} onClose={() => setShowVisualEditor(false)} />
+      )}
     </motion.div>
   );
 };
