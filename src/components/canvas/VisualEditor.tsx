@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MousePointer2, Type, Move, ZoomIn, ZoomOut, Undo2, Redo2, Save, Layers, Link2, Search, Plus } from 'lucide-react';
+import { X, MousePointer2, Type, Move, ZoomIn, ZoomOut, Undo2, Redo2, Save, Layers, Link2, Search, Plus, PanelLeft } from 'lucide-react';
 import { useCanvasStore, type CanvasNode, type ElementLink } from '@/stores/canvasStore';
 import { PropertiesPanel, type ElementStyles } from './PropertiesPanel';
+import { ElementsTemplatesPanel } from './ElementsTemplatesPanel';
 
 type Tool = 'select' | 'text' | 'move' | 'link';
 
@@ -27,6 +28,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
   const [elementLinks, setElementLinks] = useState<ElementLink[]>(node.elementLinks || []);
   const [showNodePicker, setShowNodePicker] = useState(false);
   const [nodeSearch, setNodeSearch] = useState('');
+  const [showLeftPanel, setShowLeftPanel] = useState(true);
 
   const currentContent = history[historyIndex];
   const linkableNodes = nodes.filter(n => n.id !== node.id);
@@ -160,20 +162,33 @@ export const VisualEditor = ({ node, onClose }: Props) => {
           }
           if (e.data.type === 'insertElement') {
             const tag = e.data.tag;
-            const el = document.createElement(tag);
-            const defaults = {
-              p: () => { el.textContent = 'New text paragraph'; el.style.cssText = 'margin:16px 0; font-size:16px;'; },
-              h2: () => { el.textContent = 'New Heading'; el.style.cssText = 'margin:16px 0; font-size:24px; font-weight:700;'; },
-              button: () => { el.textContent = 'Button'; el.style.cssText = 'padding:12px 24px; background:#6366f1; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer;'; },
-              a: () => { el.textContent = 'Link text'; el.href = '#'; el.style.cssText = 'color:#6366f1; text-decoration:underline;'; },
-              img: () => { el.src = 'https://placehold.co/400x200/1a1a2e/fff?text=Image'; el.alt = 'Placeholder'; el.style.cssText = 'max-width:100%; border-radius:8px; margin:16px 0;'; },
-              div: () => { el.textContent = 'New container'; el.style.cssText = 'padding:24px; margin:16px 0; background:rgba(99,102,241,0.08); border-radius:12px;'; },
-              hr: () => { el.style.cssText = 'border:none; border-top:1px solid #e2e8f0; margin:24px 0;'; },
-            };
-            (defaults[tag] || defaults.div)();
+            const customHtml = e.data.customHtml;
             const target = selected && selected !== document.body ? selected.parentElement || document.body : document.body;
-            if (selected && selected !== document.body) target.insertBefore(el, selected.nextSibling);
-            else target.appendChild(el);
+            
+            if (customHtml) {
+              const wrapper = document.createElement('div');
+              wrapper.innerHTML = customHtml;
+              const fragment = document.createDocumentFragment();
+              while (wrapper.firstChild) fragment.appendChild(wrapper.firstChild);
+              if (selected && selected !== document.body) target.insertBefore(fragment, selected.nextSibling);
+              else target.appendChild(fragment);
+            } else {
+              const el = document.createElement(tag);
+              const defaults = {
+                h1: () => { el.textContent = 'Main Heading'; el.style.cssText = 'margin:16px 0;font-size:36px;font-weight:900;'; },
+                h2: () => { el.textContent = 'New Heading'; el.style.cssText = 'margin:16px 0;font-size:24px;font-weight:700;'; },
+                h3: () => { el.textContent = 'Sub Heading'; el.style.cssText = 'margin:12px 0;font-size:20px;font-weight:600;'; },
+                p: () => { el.textContent = 'New text paragraph'; el.style.cssText = 'margin:16px 0;font-size:16px;'; },
+                button: () => { el.textContent = 'Button'; el.style.cssText = 'padding:12px 24px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;'; },
+                a: () => { el.textContent = 'Link text'; el.href = '#'; el.style.cssText = 'color:#6366f1;text-decoration:underline;'; },
+                img: () => { el.src = 'https://placehold.co/400x200/1a1a2e/fff?text=Image'; el.alt = 'Placeholder'; el.style.cssText = 'max-width:100%;border-radius:8px;margin:16px 0;'; },
+                div: () => { el.textContent = 'New container'; el.style.cssText = 'padding:24px;margin:16px 0;background:rgba(99,102,241,0.08);border-radius:12px;'; },
+                hr: () => { el.style.cssText = 'border:none;border-top:1px solid #e2e8f0;margin:24px 0;'; },
+              };
+              (defaults[tag] || defaults.div)();
+              if (selected && selected !== document.body) target.insertBefore(el, selected.nextSibling);
+              else target.appendChild(el);
+            }
             window.parent.postMessage({ type: 'contentChanged' }, '*');
           }
         });
@@ -281,6 +296,16 @@ export const VisualEditor = ({ node, onClose }: Props) => {
       iframeRef.current?.contentWindow?.postMessage({ type: 'duplicateElement' }, '*');
     } else if (action === 'insert') {
       iframeRef.current?.contentWindow?.postMessage({ type: 'insertElement', tag: payload }, '*');
+    } else if (action === 'insertCustom') {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'insertElement', tag: 'custom', customHtml: payload }, '*');
+    }
+  }, []);
+
+  const handleInsertFromPanel = useCallback((tag: string, customHtml?: string) => {
+    if (customHtml || tag === 'template') {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'insertElement', tag: 'custom', customHtml: customHtml || '' }, '*');
+    } else {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'insertElement', tag }, '*');
     }
   }, []);
 
@@ -345,6 +370,14 @@ export const VisualEditor = ({ node, onClose }: Props) => {
       {/* Top toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/90 backdrop-blur shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowLeftPanel(!showLeftPanel)}
+            className={`p-1.5 rounded-lg transition-all ${showLeftPanel ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'}`}
+            title="Elements & Templates"
+          >
+            <PanelLeft className="w-4 h-4" />
+          </button>
+          <div className="h-4 w-px bg-border" />
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-primary" />
             <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Builder</span>
@@ -406,8 +439,14 @@ export const VisualEditor = ({ node, onClose }: Props) => {
         </div>
       </div>
 
-      {/* Main area: canvas + properties panel */}
+      {/* Main area: left panel + canvas + properties panel */}
       <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Left panel: Elements & Templates */}
+        {showLeftPanel && (
+          <div className="w-60 border-r border-border bg-card/90 backdrop-blur flex flex-col shrink-0 overflow-hidden">
+            <ElementsTemplatesPanel onInsertElement={handleInsertFromPanel} />
+          </div>
+        )}
         {/* Canvas */}
         <div className="flex-1 overflow-auto bg-secondary/20 flex items-center justify-center">
           <div
