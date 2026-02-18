@@ -20,6 +20,8 @@ export interface CanvasNode {
   pageRole?: string;
   /** color tag for visual grouping */
   tag?: string;
+  /** platform target */
+  platform?: 'web' | 'mobile';
 }
 
 export interface UIVariation {
