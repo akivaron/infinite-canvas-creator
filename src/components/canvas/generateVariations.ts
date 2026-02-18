@@ -270,6 +270,186 @@ function mobileLandingVariation3(title: string, desc: string): UIVariation {
 }
 
 /* ═══════════════════════════════════════════════════
+   API VARIATIONS
+   ═══════════════════════════════════════════════════ */
+
+function apiDocHtml(content: string): string {
+  return [
+    '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+    '<style>* { margin:0; padding:0; box-sizing:border-box; } body { font-family: ui-monospace, "SF Mono", monospace; background:#0c0c0e; color:#e2e8f0; font-size:13px; }',
+    '.endpoint { padding:16px 20px; border-bottom:1px solid #1e1e2e; display:flex; align-items:center; gap:12px; }',
+    '.method { padding:4px 10px; border-radius:6px; font-size:11px; font-weight:800; text-transform:uppercase; }',
+    '.get { background:#059669; color:#fff; } .post { background:#3b82f6; color:#fff; } .put { background:#f59e0b; color:#fff; } .delete { background:#ef4444; color:#fff; } .patch { background:#8b5cf6; color:#fff; }',
+    '.path { font-weight:600; flex:1; } .desc { font-size:11px; color:#64748b; }',
+    '.section-title { padding:12px 20px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:#6366f1; border-bottom:1px solid #1e1e2e; background:#0a0a0c; }',
+    '.schema { padding:16px 20px; font-size:12px; color:#94a3b8; border-bottom:1px solid #1e1e2e; }',
+    '.schema code { color:#a78bfa; }',
+    '</style></head><body>',
+    content,
+    '</body></html>',
+  ].join('\n');
+}
+
+function apiVariation1(title: string, desc: string): UIVariation {
+  return {
+    id: `var-${++variationCounter}`, label: title + ' — REST API', description: 'RESTful API with CRUD endpoints, authentication, and pagination.', category: 'dashboard',
+    previewHtml: apiDocHtml(
+      '<div style="padding:20px;border-bottom:1px solid #1e1e2e;"><h1 style="font-size:18px;font-weight:900;color:#fff;margin-bottom:4px;">' + title + ' API</h1><p style="font-size:12px;color:#64748b;">' + desc + '</p><div style="display:flex;gap:8px;margin-top:12px;"><span style="padding:4px 10px;background:#1e1e2e;border-radius:6px;font-size:10px;font-weight:700;color:#6366f1;">v1.0</span><span style="padding:4px 10px;background:#1e1e2e;border-radius:6px;font-size:10px;font-weight:700;color:#059669;">Production</span></div></div>' +
+      '<div class="section-title">🔐 Authentication</div>' +
+      '<div class="endpoint"><span class="method post">POST</span><span class="path">/api/auth/login</span><span class="desc">Login with email & password</span></div>' +
+      '<div class="endpoint"><span class="method post">POST</span><span class="path">/api/auth/register</span><span class="desc">Create new account</span></div>' +
+      '<div class="endpoint"><span class="method post">POST</span><span class="path">/api/auth/refresh</span><span class="desc">Refresh access token</span></div>' +
+      '<div class="section-title">📦 Resources</div>' +
+      '<div class="endpoint"><span class="method get">GET</span><span class="path">/api/items</span><span class="desc">List all items (paginated)</span></div>' +
+      '<div class="endpoint"><span class="method get">GET</span><span class="path">/api/items/:id</span><span class="desc">Get single item</span></div>' +
+      '<div class="endpoint"><span class="method post">POST</span><span class="path">/api/items</span><span class="desc">Create new item</span></div>' +
+      '<div class="endpoint"><span class="method put">PUT</span><span class="path">/api/items/:id</span><span class="desc">Update item</span></div>' +
+      '<div class="endpoint"><span class="method delete">DELETE</span><span class="path">/api/items/:id</span><span class="desc">Delete item</span></div>' +
+      '<div class="section-title">📊 Schema</div>' +
+      '<div class="schema"><code>Item { id: string, name: string, status: "active" | "archived", created_at: timestamp, updated_at: timestamp }</code></div>'
+    ),
+    code: '// REST API for ' + title,
+  };
+}
+
+function apiVariation2(title: string, desc: string): UIVariation {
+  return {
+    id: `var-${++variationCounter}`, label: title + ' — GraphQL API', description: 'GraphQL API with queries, mutations, and subscriptions.', category: 'dashboard',
+    previewHtml: apiDocHtml(
+      '<div style="padding:20px;border-bottom:1px solid #1e1e2e;"><h1 style="font-size:18px;font-weight:900;color:#fff;margin-bottom:4px;">' + title + ' GraphQL</h1><p style="font-size:12px;color:#64748b;">' + desc + '</p></div>' +
+      '<div class="section-title">📥 Queries</div>' +
+      '<div class="endpoint"><span class="method get" style="background:#06b6d4;">QUERY</span><span class="path">items(page: Int, limit: Int)</span><span class="desc">→ [Item!]!</span></div>' +
+      '<div class="endpoint"><span class="method get" style="background:#06b6d4;">QUERY</span><span class="path">item(id: ID!)</span><span class="desc">→ Item</span></div>' +
+      '<div class="section-title">📤 Mutations</div>' +
+      '<div class="endpoint"><span class="method post" style="background:#f59e0b;">MUTATE</span><span class="path">createItem(input: CreateItemInput!)</span><span class="desc">→ Item!</span></div>' +
+      '<div class="endpoint"><span class="method post" style="background:#f59e0b;">MUTATE</span><span class="path">updateItem(id: ID!, input: UpdateItemInput!)</span><span class="desc">→ Item!</span></div>' +
+      '<div class="endpoint"><span class="method post" style="background:#f59e0b;">MUTATE</span><span class="path">deleteItem(id: ID!)</span><span class="desc">→ Boolean!</span></div>' +
+      '<div class="section-title">🔔 Subscriptions</div>' +
+      '<div class="endpoint"><span class="method get" style="background:#8b5cf6;">SUB</span><span class="path">itemCreated</span><span class="desc">→ Item!</span></div>' +
+      '<div class="section-title">📊 Types</div>' +
+      '<div class="schema"><code>type Item { id: ID!, name: String!, status: Status!, createdAt: DateTime! }</code></div>'
+    ),
+    code: '// GraphQL API for ' + title,
+  };
+}
+
+function apiVariation3(title: string, desc: string): UIVariation {
+  return {
+    id: `var-${++variationCounter}`, label: title + ' — WebSocket API', description: 'Real-time WebSocket API with event channels.', category: 'dashboard',
+    previewHtml: apiDocHtml(
+      '<div style="padding:20px;border-bottom:1px solid #1e1e2e;"><h1 style="font-size:18px;font-weight:900;color:#fff;margin-bottom:4px;">' + title + ' WebSocket</h1><p style="font-size:12px;color:#64748b;">Real-time bidirectional communication</p></div>' +
+      '<div class="section-title">🔌 Connection</div>' +
+      '<div class="endpoint"><span class="method get" style="background:#059669;">WS</span><span class="path">ws://api.example.com/ws</span><span class="desc">WebSocket endpoint</span></div>' +
+      '<div class="section-title">📡 Client → Server</div>' +
+      '<div class="endpoint"><span class="method post">EMIT</span><span class="path">authenticate</span><span class="desc">{ token: string }</span></div>' +
+      '<div class="endpoint"><span class="method post">EMIT</span><span class="path">subscribe</span><span class="desc">{ channel: string }</span></div>' +
+      '<div class="endpoint"><span class="method post">EMIT</span><span class="path">message.send</span><span class="desc">{ channel, content }</span></div>' +
+      '<div class="section-title">📡 Server → Client</div>' +
+      '<div class="endpoint"><span class="method get" style="background:#8b5cf6;">ON</span><span class="path">message.received</span><span class="desc">{ id, sender, content }</span></div>' +
+      '<div class="endpoint"><span class="method get" style="background:#8b5cf6;">ON</span><span class="path">user.presence</span><span class="desc">{ userId, status }</span></div>' +
+      '<div class="endpoint"><span class="method get" style="background:#ef4444;">ON</span><span class="path">error</span><span class="desc">{ code, message }</span></div>'
+    ),
+    code: '// WebSocket API for ' + title,
+  };
+}
+
+/* ═══════════════════════════════════════════════════
+   DESKTOP VARIATIONS
+   ═══════════════════════════════════════════════════ */
+
+function desktopVariation1(title: string, desc: string): UIVariation {
+  return {
+    id: `var-${++variationCounter}`, label: title + ' — Desktop App', description: 'Desktop app with sidebar, toolbar, and content area.', category: 'dashboard',
+    previewHtml: fullPageHtml([
+      '<div style="display:flex;height:100vh;">',
+      '<div style="width:220px;background:#0f172a;color:#fff;display:flex;flex-direction:column;padding:16px;">',
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;"><div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;">✦</div><span style="font-size:12px;font-weight:800;">' + title + '</span></div>',
+      ...['📊 Dashboard', '📁 Files', '📝 Editor', '⚙️ Settings'].map(item => '<a href="#" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:#94a3b8;text-decoration:none;font-size:12px;margin-bottom:2px;">' + item + '</a>'),
+      '</div>',
+      '<div style="flex:1;display:flex;flex-direction:column;">',
+      '<div style="padding:12px 24px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;"><span style="font-size:14px;font-weight:800;">' + title + '</span><div style="flex:1;"></div><button style="padding:6px 14px;background:#6366f1;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Save All</button></div>',
+      '<div style="flex:1;padding:24px;overflow:auto;"><div class="card"><h3 style="font-size:14px;margin-bottom:8px;">Welcome</h3><p>' + desc + '</p></div></div>',
+      '<div style="padding:6px 16px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;">Ready · UTF-8 · TypeScript</div>',
+      '</div></div>',
+    ]),
+    code: '// Desktop app for ' + title,
+  };
+}
+
+function desktopVariation2(title: string, desc: string): UIVariation {
+  return {
+    id: `var-${++variationCounter}`, label: title + ' — IDE Style', description: 'IDE-style desktop with file tree, tabs, and terminal.', category: 'dashboard',
+    previewHtml: fullPageHtml([
+      '<div style="display:flex;height:100vh;flex-direction:column;">',
+      '<div style="padding:4px 16px;background:#1e1e2e;display:flex;gap:16px;font-size:11px;color:#94a3b8;"><span style="font-weight:700;color:#fff;">' + title + '</span><span>File</span><span>Edit</span><span>View</span></div>',
+      '<div style="flex:1;display:flex;overflow:hidden;">',
+      '<div style="width:180px;background:#161622;padding:12px;font-size:11px;color:#94a3b8;border-right:1px solid #1e1e2e;"><div style="font-size:10px;font-weight:700;color:#6366f1;margin-bottom:8px;">EXPLORER</div>' +
+      ['📁 src/', '  📄 index.ts', '  📄 app.tsx', '📄 package.json'].map(f => '<div style="padding:3px ' + (f.startsWith('  ') ? '20' : '4') + 'px;">' + f.trim() + '</div>').join('') + '</div>',
+      '<div style="flex:1;display:flex;flex-direction:column;">',
+      '<div style="display:flex;background:#1e1e2e;"><div style="padding:8px 16px;background:#0c0c0e;font-size:11px;font-weight:600;color:#fff;border-bottom:2px solid #6366f1;">index.ts</div></div>',
+      '<div style="flex:1;background:#0c0c0e;padding:16px;font-family:monospace;font-size:12px;color:#e2e8f0;line-height:1.8;"><span style="color:#6366f1;">const</span> app = <span style="color:#f59e0b;">createApp</span>();\napp.<span style="color:#f59e0b;">listen</span>(<span style="color:#a78bfa;">3000</span>);</div>',
+      '<div style="height:80px;background:#0a0a0c;border-top:1px solid #1e1e2e;padding:8px 12px;font-family:monospace;font-size:11px;color:#64748b;"><span style="color:#6366f1;font-weight:700;">TERMINAL</span><br/>$ bun dev<br/><span style="color:#059669;">✓ Ready in 120ms</span></div>',
+      '</div></div></div>',
+    ]),
+    code: '// IDE-style desktop for ' + title,
+  };
+}
+
+/* ═══════════════════════════════════════════════════
+   CLI VARIATIONS
+   ═══════════════════════════════════════════════════ */
+
+function cliVariation1(title: string, desc: string): UIVariation {
+  const cmd = title.toLowerCase().replace(/\\s+/g, '-');
+  return {
+    id: `var-${++variationCounter}`, label: title + ' — CLI Tool', description: 'CLI with subcommands, flags, and colored output.', category: 'dashboard',
+    previewHtml: apiDocHtml(
+      '<div style="padding:20px;font-family:ui-monospace,monospace;">' +
+      '<div style="color:#6366f1;font-weight:800;margin-bottom:4px;">$ ' + cmd + ' --help</div>' +
+      '<div style="margin-bottom:16px;"><span style="color:#fff;font-weight:800;">' + title + '</span> <span style="color:#64748b;">v1.0.0</span></div>' +
+      '<div style="color:#f59e0b;font-weight:700;margin-bottom:8px;">COMMANDS:</div>' +
+      '<div style="padding-left:16px;margin-bottom:16px;">' +
+      ['init         Initialize project', 'build        Build for production', 'dev          Start dev server', 'deploy       Deploy to cloud', 'test         Run tests'].map(c => {
+        const [name, ...d] = c.split(/\\s{2,}/);
+        return '<div style="margin-bottom:4px;"><span style="color:#059669;font-weight:600;display:inline-block;width:120px;">' + name + '</span><span style="color:#94a3b8;">' + d.join(' ') + '</span></div>';
+      }).join('') +
+      '</div>' +
+      '<div style="color:#f59e0b;font-weight:700;margin-bottom:8px;">OPTIONS:</div>' +
+      '<div style="padding-left:16px;">' +
+      ['--config, -c    Config file', '--verbose, -v   Verbose output', '--help, -h      Show help'].map(o => {
+        const [flag, ...d] = o.split(/\\s{2,}/);
+        return '<div style="margin-bottom:4px;"><span style="color:#a78bfa;font-weight:600;display:inline-block;width:160px;">' + flag + '</span><span style="color:#94a3b8;">' + d.join(' ') + '</span></div>';
+      }).join('') +
+      '</div></div>'
+    ),
+    code: '// CLI tool for ' + title,
+  };
+}
+
+function cliVariation2(title: string, desc: string): UIVariation {
+  const cmd = title.toLowerCase().replace(/\\s+/g, '-');
+  return {
+    id: `var-${++variationCounter}`, label: title + ' — Interactive CLI', description: 'Interactive CLI with prompts and progress.', category: 'dashboard',
+    previewHtml: apiDocHtml(
+      '<div style="padding:20px;font-family:ui-monospace,monospace;">' +
+      '<div style="color:#6366f1;font-weight:800;margin-bottom:12px;">$ ' + cmd + ' init</div>' +
+      '<div style="margin-bottom:12px;"><span style="color:#f59e0b;">?</span> <span style="color:#fff;">Project name:</span> <span style="color:#06b6d4;">my-project</span></div>' +
+      '<div style="margin-bottom:12px;"><span style="color:#f59e0b;">?</span> <span style="color:#fff;">Framework:</span><br/>' +
+      '<span style="padding-left:16px;color:#059669;">❯ React</span><br/>' +
+      '<span style="padding-left:16px;color:#64748b;">  Vue</span><br/>' +
+      '<span style="padding-left:16px;color:#64748b;">  Svelte</span></div>' +
+      '<div style="margin-bottom:12px;"><span style="color:#f59e0b;">?</span> <span style="color:#fff;">TypeScript?</span> <span style="color:#06b6d4;">Yes</span></div>' +
+      '<div style="margin-bottom:16px;">' +
+      '<div style="color:#6366f1;">⠼ Installing...</div>' +
+      '<div style="margin:8px 0;background:#1e1e2e;border-radius:4px;height:8px;overflow:hidden;"><div style="width:75%;height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px;"></div></div></div>' +
+      '<div style="color:#059669;font-weight:700;">✓ Created successfully!</div>' +
+      '<div style="color:#94a3b8;margin-top:8px;font-size:11px;">cd my-project && bun dev</div></div>'
+    ),
+    code: '// Interactive CLI for ' + title,
+  };
+}
+
+/* ═══════════════════════════════════════════════════
    EXPORTS
    ═══════════════════════════════════════════════════ */
 
@@ -277,7 +457,7 @@ function mobileLandingVariation3(title: string, desc: string): UIVariation {
 export function generateFullPageVariations(
   title: string,
   description: string,
-  platform: 'web' | 'mobile'
+  platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli'
 ): UIVariation[] {
   const desc = description || 'A beautifully crafted solution built with modern design principles.';
   if (platform === 'web') {
@@ -287,10 +467,30 @@ export function generateFullPageVariations(
       webLandingVariation3(title, desc),
     ];
   }
+  if (platform === 'mobile') {
+    return [
+      mobileLandingVariation1(title, desc),
+      mobileLandingVariation2(title, desc),
+      mobileLandingVariation3(title, desc),
+    ];
+  }
+  if (platform === 'api') {
+    return [
+      apiVariation1(title, desc),
+      apiVariation2(title, desc),
+      apiVariation3(title, desc),
+    ];
+  }
+  if (platform === 'desktop') {
+    return [
+      desktopVariation1(title, desc),
+      desktopVariation2(title, desc),
+    ];
+  }
+  // cli
   return [
-    mobileLandingVariation1(title, desc),
-    mobileLandingVariation2(title, desc),
-    mobileLandingVariation3(title, desc),
+    cliVariation1(title, desc),
+    cliVariation2(title, desc),
   ];
 }
 
@@ -298,7 +498,7 @@ export function generateFullPageVariations(
 export function getRandomVariation(
   title: string,
   description: string,
-  platform: 'web' | 'mobile',
+  platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli',
   excludeId?: string
 ): UIVariation {
   const all = generateFullPageVariations(title, description, platform);
@@ -336,7 +536,7 @@ function sectionHtml(content: string): string {
   ].join('\n');
 }
 
-export function generateSubSections(title: string, platform: 'web' | 'mobile'): SubSection[] {
+export function generateSubSections(title: string, platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli'): SubSection[] {
   const sections: SubSection[] = [
     {
       id: `sub-${++variationCounter}`,

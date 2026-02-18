@@ -5,7 +5,7 @@ import {
   Sparkles, Code, FileCode, Upload, Play, Trash2, Monitor, Star,
   Edit3, Check, X, Copy, Tag, RefreshCw,
   MoreHorizontal, Lock, Unlock, Minimize2, Maximize2, ChevronDown,
-  Smartphone, Globe, ArrowRight, Layers, Pencil
+  Smartphone, Globe, ArrowRight, Layers, Pencil, Server, MonitorDot, Terminal
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { generateFullPageVariations, getRandomVariation, generateSubSections } from './generateVariations';
@@ -16,6 +16,7 @@ const typeConfig: Record<CanvasNode['type'], { icon: typeof Sparkles; gradient: 
   design: { icon: Code, gradient: 'from-emerald-500/20 to-teal-500/20', label: 'Design' },
   code: { icon: FileCode, gradient: 'from-amber-500/20 to-orange-500/20', label: 'Code' },
   import: { icon: Upload, gradient: 'from-sky-500/20 to-blue-500/20', label: 'Import' },
+  api: { icon: Server, gradient: 'from-rose-500/20 to-pink-500/20', label: 'API' },
 };
 
 const statusColors: Record<CanvasNode['status'], string> = {
@@ -93,7 +94,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
   /* ── Generate: create full-page variation nodes ── */
   const handleGenerate = useCallback(
-    (platform: 'web' | 'mobile') => {
+    (platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli') => {
       setShowPlatformPicker(false);
       updateNode(node.id, { status: 'generating', platform });
 
@@ -447,16 +448,29 @@ export const CanvasNodeCard = ({ node }: Props) => {
                 {/* Platform picker */}
                 <AnimatePresence>
                   {showPlatformPicker && (
-                    <motion.div className="w-full flex gap-2" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
-                      <button onClick={() => handleGenerate('web')} className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2">
-                        <Globe className="w-3.5 h-3.5" /> Web
-                      </button>
-                      <button onClick={() => handleGenerate('mobile')} className="flex-1 py-3 rounded-xl bg-foreground text-background text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2">
-                        <Smartphone className="w-3.5 h-3.5" /> Mobile
-                      </button>
-                      <button onClick={() => setShowPlatformPicker(false)} className="p-3 rounded-xl border border-border text-muted-foreground hover:text-foreground transition-all">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                    <motion.div className="w-full space-y-2" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleGenerate('web')} className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2">
+                          <Globe className="w-3.5 h-3.5" /> Web
+                        </button>
+                        <button onClick={() => handleGenerate('mobile')} className="flex-1 py-3 rounded-xl bg-foreground text-background text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2">
+                          <Smartphone className="w-3.5 h-3.5" /> Mobile
+                        </button>
+                        <button onClick={() => handleGenerate('api')} className="flex-1 py-3 rounded-xl border-2 border-rose-500/50 text-rose-400 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2">
+                          <Server className="w-3.5 h-3.5" /> API
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleGenerate('desktop')} className="flex-1 py-2.5 rounded-xl border border-border text-foreground text-[10px] font-black uppercase tracking-widest hover:border-primary/30 hover:bg-secondary/50 transition-all flex items-center justify-center gap-2">
+                          <MonitorDot className="w-3.5 h-3.5" /> Desktop
+                        </button>
+                        <button onClick={() => handleGenerate('cli')} className="flex-1 py-2.5 rounded-xl border border-border text-foreground text-[10px] font-black uppercase tracking-widest hover:border-primary/30 hover:bg-secondary/50 transition-all flex items-center justify-center gap-2">
+                          <Terminal className="w-3.5 h-3.5" /> CLI
+                        </button>
+                        <button onClick={() => setShowPlatformPicker(false)} className="p-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground transition-all">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
