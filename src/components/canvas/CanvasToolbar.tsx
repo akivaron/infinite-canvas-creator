@@ -151,8 +151,8 @@ export const CanvasToolbar = () => {
       type: 'idea',
       title: ideaText.trim(),
       description: 'Click "Generate" to create a design from this idea. The AI will produce multiple design variations you can run and preview.',
-      x: 100 + col * 420,
-      y: 100 + row * 400,
+      x: 100 + col * 480,
+      y: 100 + row * 460,
       width: 360,
       height: 300,
       status: 'idle',
@@ -169,8 +169,8 @@ export const CanvasToolbar = () => {
       type,
       title: type === 'design' ? 'New Design' : 'New Code Block',
       description: type === 'design' ? 'An empty design node. Connect it to ideas or write your own.' : 'An empty code node for custom scripts and components.',
-      x: 100 + col * 420,
-      y: 100 + row * 400,
+      x: 100 + col * 480,
+      y: 100 + row * 460,
       width: 360,
       height: 300,
       status: 'idle',
@@ -193,8 +193,8 @@ export const CanvasToolbar = () => {
             type: 'import',
             title: file.name.replace(/\.(tsx?|css)$/, ''),
             description: `Imported ${file.name} (${(file.size / 1024).toFixed(1)}KB)`,
-            x: 100 + col * 420,
-            y: 100 + row * 400,
+            x: 100 + col * 480,
+            y: 100 + row * 460,
             width: 360,
             height: 300,
             status: 'ready',
@@ -252,7 +252,7 @@ export const CanvasToolbar = () => {
     <>
       {/* ─── Top center: title + search ─── */}
       <motion.div
-        className="fixed top-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3"
+        className="fixed top-6 left-0 right-0 z-20 flex items-center justify-center gap-3"
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.1 }}

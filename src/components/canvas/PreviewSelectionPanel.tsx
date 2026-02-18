@@ -34,7 +34,7 @@ export const PreviewSelectionPanel = () => {
       title: variation.label,
       description: variation.description,
       x: sourceNode.x + sourceNode.width + 80,
-      y: sourceNode.y + existingDesigns.length * 340,
+      y: sourceNode.y + existingDesigns.length * 400,
       width: 380,
       height: 320,
       status: 'ready',
