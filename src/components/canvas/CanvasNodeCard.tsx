@@ -4,10 +4,10 @@ import {
   Sparkles, Code, FileCode, Upload, Play, Trash2, Monitor, Star, Link,
   Edit3, Check, X, Copy, Tag, RefreshCw,
   MoreHorizontal, Lock, Unlock, Minimize2, Maximize2, ChevronDown,
-  Smartphone, Globe
+  Smartphone, Globe, ArrowRight, Layers
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
-import { generateFullPageVariations, getRandomVariation } from './generateVariations';
+import { generateFullPageVariations, getRandomVariation, generateSubSections } from './generateVariations';
 
 const typeConfig: Record<CanvasNode['type'], { icon: typeof Sparkles; gradient: string; label: string }> = {
   idea: { icon: Sparkles, gradient: 'from-indigo-500/20 to-violet-500/20', label: 'Idea' },
@@ -54,6 +54,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
+  const [showNextMenu, setShowNextMenu] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -151,6 +152,46 @@ export const CanvasNodeCard = ({ node }: Props) => {
       }, 1200);
     },
     [node.id, node.title, node.description, node.parentId, node.platform, node.generatedCode, updateNode]
+  );
+
+  /* ── Generate Sub-UI sections from a page ── */
+  const handleGenerateSubUI = useCallback(
+    (e: MouseEvent) => {
+      e.stopPropagation();
+      setShowNextMenu(false);
+      updateNode(node.id, { status: 'generating' });
+
+      setTimeout(() => {
+        updateNode(node.id, { status: 'ready' });
+        const subSections = generateSubSections(node.title, node.platform || 'web');
+
+        const count = subSections.length;
+        const cardH = 260;
+        const gap = 30;
+        const totalHeight = count * cardH + (count - 1) * gap;
+        const startY = node.y + (node.height || 150) / 2 - totalHeight / 2;
+
+        subSections.forEach((section, idx) => {
+          const newId = addNode({
+            type: 'design',
+            title: section.label,
+            description: section.description,
+            x: node.x + node.width + 200,
+            y: startY + idx * (cardH + gap),
+            width: 380,
+            height: cardH,
+            status: 'ready',
+            generatedCode: section.code,
+            content: section.previewHtml,
+            parentId: node.id,
+            pageRole: section.category,
+            platform: node.platform,
+          });
+          connectNodes(node.id, newId);
+        });
+      }, 1500);
+    },
+    [node.id, node.title, node.x, node.y, node.width, node.height, node.platform, updateNode, addNode, connectNodes]
   );
 
   const handleRun = useCallback(
@@ -392,17 +433,47 @@ export const CanvasNodeCard = ({ node }: Props) => {
                   )}
                 </AnimatePresence>
 
-                {/* DESIGN node: Regenerate */}
-                {node.type === 'design' && node.status === 'ready' && node.platform && (
-                  <button onClick={handleRegenerate} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-border text-foreground text-[10px] font-black uppercase tracking-widest hover:border-primary/30 transition-all">
-                    <RefreshCw className="w-3 h-3" /> Regenerate
+                {/* DESIGN node: Next button with dropdown */}
+                {node.type === 'design' && node.status === 'ready' && node.platform && !showNextMenu && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowNextMenu(true); }}
+                    className="brand-button flex-1 flex items-center justify-center gap-2 !py-3"
+                  >
+                    <ArrowRight className="w-3 h-3" /> Next
                   </button>
                 )}
-                {node.type === 'design' && node.status === 'ready' && !node.pageRole && (
-                  <button onClick={handleRun} className="brand-button flex-1 flex items-center justify-center gap-2 !py-3">
-                    <Play className="w-3 h-3" /> Run
-                  </button>
-                )}
+
+                {/* Next menu dropdown */}
+                <AnimatePresence>
+                  {showNextMenu && node.type === 'design' && (
+                    <motion.div
+                      className="w-full space-y-2"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={handleRegenerate}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border text-foreground text-[10px] font-black uppercase tracking-widest hover:border-primary/30 hover:bg-secondary/50 transition-all"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Regenerate Variation
+                      </button>
+                      <button
+                        onClick={handleGenerateSubUI}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all"
+                      >
+                        <Layers className="w-3 h-3" /> Generate Sub-UI
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setShowNextMenu(false); }}
+                        className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-muted-foreground text-[10px] font-bold hover:text-foreground transition-all"
+                      >
+                        <X className="w-3 h-3" /> Cancel
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* CODE node: Run */}
                 {node.type === 'code' && node.status === 'ready' && (
