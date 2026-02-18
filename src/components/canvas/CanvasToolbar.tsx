@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Upload, ZoomIn, ZoomOut, Maximize2,
   Search, X, Layers, Moon, Sun, Copy, Trash2,
-  Code, FileCode, Grid3X3, Keyboard, Download, Eye, Package
+  Code, FileCode, Grid3X3, Keyboard, Download, Eye, Package,
+  Plus, Globe, Smartphone, Server, Terminal, Database, Monitor, ChevronUp
 } from 'lucide-react';
-import { useCanvasStore } from '@/stores/canvasStore';
+import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 
 /* ── Minimap ────────────────────────────────── */
 const Minimap = () => {
@@ -117,8 +118,9 @@ export const CanvasToolbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showMinimap, setShowMinimap] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showNodeTypes, setShowNodeTypes] = useState(false); // kept for state but menu removed
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const addMenuRef = useRef<HTMLDivElement>(null);
 
   // Apply dark mode to html
   useEffect(() => {
@@ -161,22 +163,34 @@ export const CanvasToolbar = () => {
     setShowIdeaInput(false);
   }, [ideaText, nodes.length, addNode]);
 
-  const handleAddTypedNode = useCallback((type: 'design' | 'code') => {
+  const handleAddPlatformNode = useCallback((platform: CanvasNode['platform'], type: CanvasNode['type'], title: string, desc: string) => {
     const nodeCount = nodes.length;
     const col = nodeCount % 3;
     const row = Math.floor(nodeCount / 3);
     addNode({
       type,
-      title: type === 'design' ? 'New Design' : 'New Code Block',
-      description: type === 'design' ? 'An empty design node. Connect it to ideas or write your own.' : 'An empty code node for custom scripts and components.',
+      title,
+      description: desc,
       x: 100 + col * 480,
       y: 100 + row * 460,
       width: 360,
       height: 300,
       status: 'idle',
+      platform,
     });
-    setShowNodeTypes(false);
+    setShowAddMenu(false);
   }, [nodes.length, addNode]);
+
+  // Close add menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setShowAddMenu(false);
+      }
+    };
+    if (showAddMenu) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAddMenu]);
 
   const handleFileImport = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -362,6 +376,41 @@ export const CanvasToolbar = () => {
       >
         <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-card/90 backdrop-blur-xl border border-border shadow-2xl shadow-primary/5">
           <ToolButton icon={Sparkles} label="New Idea (N)" onClick={() => setShowIdeaInput(true)} accent />
+
+          {/* Add node menu */}
+          <div className="relative" ref={addMenuRef}>
+            <ToolButton icon={Plus} label="Add Node" onClick={() => setShowAddMenu(!showAddMenu)} active={showAddMenu} />
+            <AnimatePresence>
+              {showAddMenu && (
+                <motion.div
+                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-56 rounded-2xl bg-card/95 backdrop-blur-xl border border-border shadow-2xl p-2"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                >
+                  <p className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground">Add Node</p>
+                  {[
+                    { icon: Globe, label: 'Web App', platform: 'web' as const, type: 'design' as const, desc: 'A web application node with HTML/CSS/JS.' },
+                    { icon: Smartphone, label: 'Mobile App', platform: 'mobile' as const, type: 'design' as const, desc: 'A mobile application node for iOS/Android.' },
+                    { icon: Server, label: 'API Server', platform: 'api' as const, type: 'api' as const, desc: 'A REST/GraphQL API server node.' },
+                    { icon: Terminal, label: 'CLI Tool', platform: 'cli' as const, type: 'cli' as const, desc: 'A command-line interface tool node.' },
+                    { icon: Monitor, label: 'Desktop App', platform: 'desktop' as const, type: 'design' as const, desc: 'A desktop application node (Electron/Tauri).' },
+                    { icon: Database, label: 'Database', platform: 'database' as const, type: 'database' as const, desc: 'A database schema designer node.' },
+                    { icon: Code, label: 'Code Block', platform: undefined, type: 'code' as const, desc: 'A standalone code/script node.' },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      onClick={() => handleAddPlatformNode(item.platform, item.type, item.label, item.desc)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-secondary transition-colors group"
+                    >
+                      <item.icon className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="text-xs font-bold text-foreground">{item.label}</span>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           <ToolButton icon={Upload} label="Import Files" onClick={() => fileInputRef.current?.click()} />
 
