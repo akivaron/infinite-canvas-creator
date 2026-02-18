@@ -1,6 +1,6 @@
 import { useCallback, type MouseEvent } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Code, FileCode, Upload, Play, Trash2, Link } from 'lucide-react';
+import { Sparkles, Code, FileCode, Upload, Play, Trash2, Monitor } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 
 const typeConfig: Record<CanvasNode['type'], { icon: typeof Sparkles; gradient: string }> = {
@@ -174,9 +174,74 @@ export default function LandingPage() {
     (e: MouseEvent) => {
       e.stopPropagation();
       updateNode(node.id, { status: 'running' });
-      setTimeout(() => updateNode(node.id, { status: 'ready' }), 3000);
+      setTimeout(() => {
+        updateNode(node.id, { status: 'ready' });
+
+        const { addNode, connectNodes } = useCanvasStore.getState();
+        const previewHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${node.title}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: system-ui, sans-serif; background:#f8fafc; color:#0f172a; }
+  @media (prefers-color-scheme:dark) { body { background:#050505; color:#fff; } }
+  .header { padding:24px 32px; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:12px; }
+  @media (prefers-color-scheme:dark) { .header { border-color:#1c1c1f; } }
+  .logo { width:32px; height:32px; border-radius:10px; background:linear-gradient(135deg,#6366f1,#8b5cf6); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:900; font-size:14px; }
+  .brand { font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.1em; }
+  .hero { max-width:640px; margin:80px auto; text-align:center; padding:0 24px; }
+  .hero h1 { font-size:32px; font-weight:900; text-transform:uppercase; letter-spacing:-0.02em; margin-bottom:16px; }
+  .hero p { font-size:12px; color:#64748b; font-weight:500; line-height:1.8; margin-bottom:32px; }
+  .btn { display:inline-block; padding:14px 32px; background:#0f172a; color:#fff; border:none; border-radius:12px; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.1em; cursor:pointer; }
+  @media (prefers-color-scheme:dark) { .btn { background:#fff; color:#000; } }
+  .cards { max-width:900px; margin:48px auto; display:grid; grid-template-columns:repeat(3,1fr); gap:20px; padding:0 24px; }
+  .card { padding:24px; border-radius:20px; background:#fff; border:1px solid #e2e8f0; }
+  @media (prefers-color-scheme:dark) { .card { background:#0c0c0e; border-color:#1c1c1f; } }
+  .card-icon { width:48px; height:48px; border-radius:14px; background:#6366f110; display:flex; align-items:center; justify-content:center; margin-bottom:16px; color:#6366f1; font-size:20px; }
+  .card h3 { font-size:14px; font-weight:900; text-transform:uppercase; margin-bottom:8px; }
+  .card p { font-size:11px; color:#64748b; line-height:1.7; }
+  .footer { text-align:center; padding:48px; font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">✦</div>
+    <span class="brand">${node.title}</span>
+  </div>
+  <div class="hero">
+    <h1>${node.title}</h1>
+    <p>${node.description || 'A beautifully crafted application built with modern design principles and clean architecture.'}</p>
+    <button class="btn">Get Started</button>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="card-icon">⚡</div><h3>Fast</h3><p>Optimized for speed with instant loading and smooth interactions.</p></div>
+    <div class="card"><div class="card-icon">🔒</div><h3>Secure</h3><p>Enterprise-grade security with end-to-end encryption.</p></div>
+    <div class="card"><div class="card-icon">📱</div><h3>Responsive</h3><p>Perfect experience across all devices and screen sizes.</p></div>
+  </div>
+  <div class="footer">Built with ✦ Infinite Canvas IDE</div>
+</body>
+</html>`;
+
+        const newId = addNode({
+          type: 'code',
+          title: `▶ ${node.title}`,
+          description: 'Live preview of the running application.',
+          x: node.x + node.width + 80,
+          y: node.y,
+          width: 520,
+          height: 460,
+          status: 'running',
+          generatedCode: previewHtml,
+          content: previewHtml,
+        });
+        connectNodes(node.id, newId);
+      }, 2500);
     },
-    [node.id, updateNode]
+    [node.id, node.title, node.description, updateNode]
   );
 
   const handleDelete = useCallback(
@@ -217,8 +282,31 @@ export default function LandingPage() {
         </h3>
         <p className="brand-description mb-4 line-clamp-3">{node.description}</p>
 
-        {/* Generated code preview */}
-        {node.generatedCode && (
+        {/* Live web preview for running code nodes */}
+        {node.type === 'code' && node.content && (
+          <div className="mb-4 rounded-xl border border-border overflow-hidden" style={{ height: node.height ? node.height - 200 : 200 }}>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/50 border-b border-border">
+              <Monitor className="w-3 h-3 text-muted-foreground" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Live Preview</span>
+              <div className="flex gap-1 ml-auto">
+                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
+                <div className="w-2 h-2 rounded-full bg-rose-500" />
+              </div>
+            </div>
+            <iframe
+              srcDoc={node.content}
+              title={node.title}
+              className="w-full h-full border-0 bg-white"
+              sandbox="allow-scripts"
+              style={{ height: 'calc(100% - 28px)', pointerEvents: 'auto' }}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
+
+        {/* Generated code preview (non-running nodes) */}
+        {node.generatedCode && !(node.type === 'code' && node.content) && (
           <div className="mb-4 rounded-xl bg-secondary/50 border border-border p-3 max-h-32 overflow-hidden">
             <pre className="text-[10px] text-muted-foreground font-mono whitespace-pre-wrap">
               {node.generatedCode.slice(0, 200)}...
