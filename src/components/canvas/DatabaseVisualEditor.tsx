@@ -9,13 +9,39 @@ import {
   Bell, Lock, Settings, Activity, FileText, Globe, Workflow,
   BookOpen, Tag, MessageSquare, Star, Heart, Share2, Bookmark,
   Phone, MapPinned, Percent, Receipt, Truck, ShoppingCart,
+  Network, Boxes, BarChart3, GitBranch, Hexagon,
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+/* ─── Database Engine Types ─── */
+type DbEngine = 'sql' | 'nosql' | 'vector' | 'graph' | 'timeseries' | 'keyvalue';
+
+const dbEngines: { id: DbEngine; label: string; icon: typeof Database; description: string }[] = [
+  { id: 'sql', label: 'SQL', icon: Database, description: 'PostgreSQL, MySQL, SQLite' },
+  { id: 'nosql', label: 'NoSQL', icon: Braces, description: 'MongoDB, CouchDB, Firestore' },
+  { id: 'vector', label: 'Vector', icon: Hexagon, description: 'Pinecone, Weaviate, pgvector' },
+  { id: 'graph', label: 'Graph', icon: GitBranch, description: 'Neo4j, ArangoDB, Neptune' },
+  { id: 'timeseries', label: 'Time Series', icon: BarChart3, description: 'InfluxDB, TimescaleDB' },
+  { id: 'keyvalue', label: 'Key-Value', icon: Boxes, description: 'Redis, DynamoDB, Valkey' },
+];
+
 /* ─── Types ─── */
-type ColumnType = 'uuid' | 'serial' | 'text' | 'varchar' | 'integer' | 'bigint' | 'float' | 'decimal' | 'boolean' | 'date' | 'timestamp' | 'timestamptz' | 'json' | 'jsonb' | 'array' | 'enum' | 'bytea';
-type RelationType = 'one-to-one' | 'one-to-many' | 'many-to-many';
+type ColumnType = 'uuid' | 'serial' | 'text' | 'varchar' | 'integer' | 'bigint' | 'float' | 'decimal' | 'boolean' | 'date' | 'timestamp' | 'timestamptz' | 'json' | 'jsonb' | 'array' | 'enum' | 'bytea'
+  // NoSQL
+  | 'object' | 'objectId' | 'string' | 'number' | 'map' | 'reference'
+  // Vector
+  | 'vector' | 'embedding' | 'sparse_vector' | 'metadata'
+  // Graph
+  | 'node_label' | 'relationship' | 'property'
+  // TimeSeries
+  | 'time' | 'field' | 'tag_ts' | 'measurement'
+  // KeyValue
+  | 'key' | 'value' | 'hash_kv' | 'sorted_set' | 'list_kv' | 'ttl';
+
+type RelationType = 'one-to-one' | 'one-to-many' | 'many-to-many'
+  // Graph specific
+  | 'directed' | 'bidirectional' | 'weighted';
 
 interface DbColumn {
   id: string;
@@ -26,6 +52,10 @@ interface DbColumn {
   isUnique: boolean;
   defaultValue: string;
   reference?: { tableId: string; columnId: string };
+  /** Vector dimension for vector DBs */
+  dimension?: number;
+  /** Graph relationship label */
+  relLabel?: string;
 }
 
 interface DbTable {
@@ -35,6 +65,8 @@ interface DbTable {
   x: number;
   y: number;
   color: string;
+  /** Entity kind for non-SQL: 'collection', 'index', 'node', 'edge', 'bucket', 'measurement' */
+  kind?: string;
 }
 
 interface DbRelation {
@@ -47,11 +79,39 @@ interface DbRelation {
   label?: string;
 }
 
+/* ─── Engine-specific column types ─── */
+const columnTypesByEngine: Record<DbEngine, ColumnType[]> = {
+  sql: ['uuid', 'serial', 'text', 'varchar', 'integer', 'bigint', 'float', 'decimal', 'boolean', 'date', 'timestamp', 'timestamptz', 'json', 'jsonb', 'array', 'enum', 'bytea'],
+  nosql: ['objectId', 'string', 'number', 'boolean', 'object', 'array', 'date', 'map', 'reference', 'json', 'bytea'],
+  vector: ['uuid', 'text', 'vector', 'embedding', 'sparse_vector', 'metadata', 'integer', 'float', 'boolean', 'json', 'array'],
+  graph: ['uuid', 'text', 'integer', 'float', 'boolean', 'node_label', 'relationship', 'property', 'json', 'array', 'date'],
+  timeseries: ['time', 'field', 'tag_ts', 'measurement', 'float', 'integer', 'text', 'boolean'],
+  keyvalue: ['key', 'value', 'hash_kv', 'sorted_set', 'list_kv', 'ttl', 'json', 'text', 'integer'],
+};
+
+const relationTypesByEngine: Record<DbEngine, { value: RelationType; label: string }[]> = {
+  sql: [{ value: 'one-to-one', label: '1:1' }, { value: 'one-to-many', label: '1:N' }, { value: 'many-to-many', label: 'M:N' }],
+  nosql: [{ value: 'one-to-one', label: 'Embedded' }, { value: 'one-to-many', label: 'Reference' }, { value: 'many-to-many', label: 'Many Ref' }],
+  vector: [{ value: 'one-to-one', label: 'Metadata Link' }, { value: 'one-to-many', label: 'Namespace' }],
+  graph: [{ value: 'directed', label: 'Directed →' }, { value: 'bidirectional', label: 'Bidirectional ↔' }, { value: 'weighted', label: 'Weighted →' }],
+  timeseries: [{ value: 'one-to-one', label: 'Tag Link' }, { value: 'one-to-many', label: 'Derived' }],
+  keyvalue: [{ value: 'one-to-one', label: 'Key Ref' }, { value: 'one-to-many', label: 'Hash Field' }],
+};
+
+const entityLabel: Record<DbEngine, string> = {
+  sql: 'Table', nosql: 'Collection', vector: 'Index', graph: 'Node', timeseries: 'Measurement', keyvalue: 'Bucket',
+};
+
 const columnTypeIcons: Partial<Record<ColumnType, typeof Key>> = {
-  uuid: Key, serial: Hash, text: Type, varchar: Type,
-  integer: Hash, bigint: Hash, float: Hash, decimal: Hash,
-  boolean: ToggleLeft, date: Calendar, timestamp: Clock, timestamptz: Clock,
-  json: Braces, jsonb: Braces, array: List, enum: CircleDot, bytea: Binary,
+  uuid: Key, serial: Hash, text: Type, varchar: Type, string: Type,
+  integer: Hash, bigint: Hash, float: Hash, decimal: Hash, number: Hash,
+  boolean: ToggleLeft, date: Calendar, timestamp: Clock, timestamptz: Clock, time: Clock,
+  json: Braces, jsonb: Braces, object: Braces, map: Braces, metadata: Braces,
+  array: List, list_kv: List, enum: CircleDot, bytea: Binary,
+  objectId: Key, reference: Link2, vector: Hexagon, embedding: Hexagon, sparse_vector: Hexagon,
+  node_label: GitBranch, relationship: Network, property: Settings,
+  field: BarChart3, tag_ts: Tag, measurement: Activity,
+  key: Key, value: Type, hash_kv: Hash, sorted_set: List, ttl: Clock,
 };
 
 const tableColors = ['#6366f1', '#ec4899', '#06b6d4', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444', '#14b8a6'];
@@ -62,7 +122,8 @@ interface DbElement {
   label: string;
   icon: typeof Database;
   category: string;
-  createTable?: { name: string; columns?: Array<Omit<DbColumn, 'id'>> };
+  engine?: DbEngine | 'all';
+  createTable?: { name: string; kind?: string; columns?: Array<Omit<DbColumn, 'id'>> };
   createColumn?: Omit<DbColumn, 'id'>;
 }
 
@@ -79,192 +140,265 @@ const tsCol = (name = 'created_at'): Omit<DbColumn, 'id'> => defaultCol(name, 't
 const fkCol = (name: string): Omit<DbColumn, 'id'> => defaultCol(name, 'uuid', { isNullable: false });
 
 const dbElements: DbElement[] = [
-  // ── Tables: Auth & Users ──
-  { id: 'tbl-users', label: 'Users', icon: Users, category: 'Auth & Users', createTable: { name: 'users', columns: [
+  // ── SQL Tables ──
+  { id: 'tbl-users', label: 'Users', icon: Users, category: 'Auth & Users', engine: 'sql', createTable: { name: 'users', columns: [
     pkCol(), defaultCol('email', 'varchar', { isNullable: false, isUnique: true }), defaultCol('name', 'varchar', { isNullable: false }),
     defaultCol('avatar_url', 'text'), defaultCol('password_hash', 'text', { isNullable: false }), tsCol(),
   ] } },
-  { id: 'tbl-profiles', label: 'Profiles', icon: Users, category: 'Auth & Users', createTable: { name: 'profiles', columns: [
+  { id: 'tbl-profiles', label: 'Profiles', icon: Users, category: 'Auth & Users', engine: 'sql', createTable: { name: 'profiles', columns: [
     pkCol(), fkCol('user_id'), defaultCol('bio', 'text'), defaultCol('website', 'varchar'),
     defaultCol('location', 'varchar'), defaultCol('phone', 'varchar'), tsCol(),
   ] } },
-  { id: 'tbl-roles', label: 'Roles', icon: Shield, category: 'Auth & Users', createTable: { name: 'roles', columns: [
+  { id: 'tbl-roles', label: 'Roles', icon: Shield, category: 'Auth & Users', engine: 'sql', createTable: { name: 'roles', columns: [
     pkCol('id', 'serial'), defaultCol('name', 'varchar', { isNullable: false, isUnique: true }),
     defaultCol('description', 'text'), tsCol(),
   ] } },
-  { id: 'tbl-permissions', label: 'Permissions', icon: Lock, category: 'Auth & Users', createTable: { name: 'permissions', columns: [
+  { id: 'tbl-permissions', label: 'Permissions', icon: Lock, category: 'Auth & Users', engine: 'sql', createTable: { name: 'permissions', columns: [
     pkCol('id', 'serial'), defaultCol('name', 'varchar', { isNullable: false, isUnique: true }),
     defaultCol('resource', 'varchar', { isNullable: false }), defaultCol('action', 'varchar', { isNullable: false }),
   ] } },
-  { id: 'tbl-role-perms', label: 'Role Permissions', icon: Shield, category: 'Auth & Users', createTable: { name: 'role_permissions', columns: [
+  { id: 'tbl-role-perms', label: 'Role Permissions', icon: Shield, category: 'Auth & Users', engine: 'sql', createTable: { name: 'role_permissions', columns: [
     pkCol('id', 'serial'), defaultCol('role_id', 'integer', { isNullable: false }), defaultCol('permission_id', 'integer', { isNullable: false }),
   ] } },
-  { id: 'tbl-sessions', label: 'Sessions', icon: Activity, category: 'Auth & Users', createTable: { name: 'sessions', columns: [
+  { id: 'tbl-sessions', label: 'Sessions', icon: Activity, category: 'Auth & Users', engine: 'sql', createTable: { name: 'sessions', columns: [
     pkCol(), fkCol('user_id'), defaultCol('token', 'text', { isNullable: false, isUnique: true }),
     defaultCol('ip_address', 'varchar'), defaultCol('user_agent', 'text'),
     defaultCol('expires_at', 'timestamptz', { isNullable: false }), tsCol(),
   ] } },
 
-  // ── Tables: Content ──
-  { id: 'tbl-posts', label: 'Posts', icon: FileText, category: 'Content', createTable: { name: 'posts', columns: [
+  // ── SQL Content ──
+  { id: 'tbl-posts', label: 'Posts', icon: FileText, category: 'Content', engine: 'sql', createTable: { name: 'posts', columns: [
     pkCol(), defaultCol('title', 'varchar', { isNullable: false }), defaultCol('slug', 'varchar', { isNullable: false, isUnique: true }),
     defaultCol('content', 'text'), fkCol('author_id'), defaultCol('published', 'boolean', { isNullable: false, defaultValue: 'false' }),
     defaultCol('published_at', 'timestamptz'), tsCol(),
   ] } },
-  { id: 'tbl-categories', label: 'Categories', icon: Layers, category: 'Content', createTable: { name: 'categories', columns: [
+  { id: 'tbl-categories', label: 'Categories', icon: Layers, category: 'Content', engine: 'sql', createTable: { name: 'categories', columns: [
     pkCol('id', 'serial'), defaultCol('name', 'varchar', { isNullable: false, isUnique: true }),
     defaultCol('slug', 'varchar', { isNullable: false, isUnique: true }), defaultCol('parent_id', 'integer'),
   ] } },
-  { id: 'tbl-tags', label: 'Tags', icon: Tag, category: 'Content', createTable: { name: 'tags', columns: [
+  { id: 'tbl-tags', label: 'Tags', icon: Tag, category: 'Content', engine: 'sql', createTable: { name: 'tags', columns: [
     pkCol('id', 'serial'), defaultCol('name', 'varchar', { isNullable: false, isUnique: true }),
     defaultCol('slug', 'varchar', { isNullable: false, isUnique: true }), defaultCol('color', 'varchar'),
   ] } },
-  { id: 'tbl-comments', label: 'Comments', icon: MessageSquare, category: 'Content', createTable: { name: 'comments', columns: [
+  { id: 'tbl-comments', label: 'Comments', icon: MessageSquare, category: 'Content', engine: 'sql', createTable: { name: 'comments', columns: [
     pkCol(), fkCol('post_id'), fkCol('user_id'), defaultCol('body', 'text', { isNullable: false }),
     defaultCol('parent_id', 'uuid'), tsCol(),
   ] } },
-  { id: 'tbl-media', label: 'Media / Files', icon: Image, category: 'Content', createTable: { name: 'media', columns: [
+  { id: 'tbl-media', label: 'Media / Files', icon: Image, category: 'Content', engine: 'sql', createTable: { name: 'media', columns: [
     pkCol(), defaultCol('url', 'text', { isNullable: false }), defaultCol('filename', 'varchar', { isNullable: false }),
     defaultCol('mime_type', 'varchar'), defaultCol('size', 'bigint'), fkCol('uploaded_by'), tsCol(),
   ] } },
-  { id: 'tbl-pages', label: 'Pages', icon: BookOpen, category: 'Content', createTable: { name: 'pages', columns: [
+  { id: 'tbl-pages', label: 'Pages', icon: BookOpen, category: 'Content', engine: 'sql', createTable: { name: 'pages', columns: [
     pkCol(), defaultCol('title', 'varchar', { isNullable: false }), defaultCol('slug', 'varchar', { isNullable: false, isUnique: true }),
     defaultCol('content', 'text'), defaultCol('meta', 'jsonb'), defaultCol('is_published', 'boolean', { defaultValue: 'false' }), tsCol(),
   ] } },
 
-  // ── Tables: E-Commerce ──
-  { id: 'tbl-products', label: 'Products', icon: ShoppingCart, category: 'E-Commerce', createTable: { name: 'products', columns: [
+  // ── SQL E-Commerce ──
+  { id: 'tbl-products', label: 'Products', icon: ShoppingCart, category: 'E-Commerce', engine: 'sql', createTable: { name: 'products', columns: [
     pkCol('id', 'serial'), defaultCol('name', 'varchar', { isNullable: false }), defaultCol('slug', 'varchar', { isNullable: false, isUnique: true }),
     defaultCol('price', 'decimal', { isNullable: false, defaultValue: '0' }), defaultCol('compare_price', 'decimal'),
     defaultCol('description', 'text'), defaultCol('category_id', 'integer'), defaultCol('stock', 'integer', { isNullable: false, defaultValue: '0' }),
     defaultCol('sku', 'varchar', { isUnique: true }), defaultCol('images', 'jsonb'), tsCol(),
   ] } },
-  { id: 'tbl-orders', label: 'Orders', icon: Receipt, category: 'E-Commerce', createTable: { name: 'orders', columns: [
+  { id: 'tbl-orders', label: 'Orders', icon: Receipt, category: 'E-Commerce', engine: 'sql', createTable: { name: 'orders', columns: [
     pkCol(), fkCol('user_id'), defaultCol('total', 'decimal', { isNullable: false, defaultValue: '0' }),
-    defaultCol('subtotal', 'decimal', { isNullable: false, defaultValue: '0' }),
-    defaultCol('tax', 'decimal', { defaultValue: '0' }), defaultCol('discount', 'decimal', { defaultValue: '0' }),
     defaultCol('status', 'varchar', { isNullable: false, defaultValue: "'pending'" }),
     defaultCol('shipping_address', 'jsonb'), tsCol(),
   ] } },
-  { id: 'tbl-order-items', label: 'Order Items', icon: Receipt, category: 'E-Commerce', createTable: { name: 'order_items', columns: [
+  { id: 'tbl-order-items', label: 'Order Items', icon: Receipt, category: 'E-Commerce', engine: 'sql', createTable: { name: 'order_items', columns: [
     pkCol('id', 'serial'), fkCol('order_id'), defaultCol('product_id', 'integer', { isNullable: false }),
     defaultCol('quantity', 'integer', { isNullable: false, defaultValue: '1' }),
     defaultCol('unit_price', 'decimal', { isNullable: false }), defaultCol('total', 'decimal', { isNullable: false }),
   ] } },
-  { id: 'tbl-coupons', label: 'Coupons', icon: Percent, category: 'E-Commerce', createTable: { name: 'coupons', columns: [
+  { id: 'tbl-coupons', label: 'Coupons', icon: Percent, category: 'E-Commerce', engine: 'sql', createTable: { name: 'coupons', columns: [
     pkCol('id', 'serial'), defaultCol('code', 'varchar', { isNullable: false, isUnique: true }),
     defaultCol('discount_type', 'varchar', { isNullable: false }), defaultCol('discount_value', 'decimal', { isNullable: false }),
     defaultCol('min_order', 'decimal'), defaultCol('expires_at', 'timestamptz'), defaultCol('usage_limit', 'integer'),
   ] } },
-  { id: 'tbl-reviews', label: 'Reviews', icon: Star, category: 'E-Commerce', createTable: { name: 'reviews', columns: [
+  { id: 'tbl-reviews', label: 'Reviews', icon: Star, category: 'E-Commerce', engine: 'sql', createTable: { name: 'reviews', columns: [
     pkCol(), defaultCol('product_id', 'integer', { isNullable: false }), fkCol('user_id'),
     defaultCol('rating', 'integer', { isNullable: false }), defaultCol('title', 'varchar'),
     defaultCol('body', 'text'), tsCol(),
   ] } },
-  { id: 'tbl-cart', label: 'Shopping Cart', icon: ShoppingCart, category: 'E-Commerce', createTable: { name: 'cart_items', columns: [
+  { id: 'tbl-cart', label: 'Shopping Cart', icon: ShoppingCart, category: 'E-Commerce', engine: 'sql', createTable: { name: 'cart_items', columns: [
     pkCol('id', 'serial'), fkCol('user_id'), defaultCol('product_id', 'integer', { isNullable: false }),
     defaultCol('quantity', 'integer', { isNullable: false, defaultValue: '1' }), tsCol(),
   ] } },
 
-  // ── Tables: Social & Engagement ──
-  { id: 'tbl-likes', label: 'Likes / Reactions', icon: Heart, category: 'Social', createTable: { name: 'likes', columns: [
+  // ── SQL Social ──
+  { id: 'tbl-likes', label: 'Likes / Reactions', icon: Heart, category: 'Social', engine: 'sql', createTable: { name: 'likes', columns: [
     pkCol(), fkCol('user_id'), defaultCol('likeable_id', 'uuid', { isNullable: false }),
     defaultCol('likeable_type', 'varchar', { isNullable: false }), defaultCol('reaction', 'varchar', { defaultValue: "'like'" }), tsCol(),
   ] } },
-  { id: 'tbl-follows', label: 'Follows', icon: Users, category: 'Social', createTable: { name: 'follows', columns: [
+  { id: 'tbl-follows', label: 'Follows', icon: Users, category: 'Social', engine: 'sql', createTable: { name: 'follows', columns: [
     pkCol(), fkCol('follower_id'), fkCol('following_id'), tsCol(),
   ] } },
-  { id: 'tbl-bookmarks', label: 'Bookmarks', icon: Bookmark, category: 'Social', createTable: { name: 'bookmarks', columns: [
+  { id: 'tbl-bookmarks', label: 'Bookmarks', icon: Bookmark, category: 'Social', engine: 'sql', createTable: { name: 'bookmarks', columns: [
     pkCol(), fkCol('user_id'), defaultCol('bookmarkable_id', 'uuid', { isNullable: false }),
     defaultCol('bookmarkable_type', 'varchar', { isNullable: false }), tsCol(),
   ] } },
-  { id: 'tbl-shares', label: 'Shares', icon: Share2, category: 'Social', createTable: { name: 'shares', columns: [
-    pkCol(), fkCol('user_id'), defaultCol('shareable_id', 'uuid', { isNullable: false }),
-    defaultCol('shareable_type', 'varchar', { isNullable: false }), defaultCol('platform', 'varchar'), tsCol(),
-  ] } },
 
-  // ── Tables: System ──
-  { id: 'tbl-notifications', label: 'Notifications', icon: Bell, category: 'System', createTable: { name: 'notifications', columns: [
+  // ── SQL System ──
+  { id: 'tbl-notifications', label: 'Notifications', icon: Bell, category: 'System', engine: 'sql', createTable: { name: 'notifications', columns: [
     pkCol(), fkCol('user_id'), defaultCol('type', 'varchar', { isNullable: false }),
     defaultCol('title', 'varchar', { isNullable: false }), defaultCol('body', 'text'),
     defaultCol('data', 'jsonb'), defaultCol('read_at', 'timestamptz'), tsCol(),
   ] } },
-  { id: 'tbl-audit', label: 'Audit Log', icon: Activity, category: 'System', createTable: { name: 'audit_logs', columns: [
+  { id: 'tbl-audit', label: 'Audit Log', icon: Activity, category: 'System', engine: 'sql', createTable: { name: 'audit_logs', columns: [
     pkCol(), fkCol('user_id'), defaultCol('action', 'varchar', { isNullable: false }),
     defaultCol('resource_type', 'varchar', { isNullable: false }), defaultCol('resource_id', 'varchar'),
     defaultCol('old_data', 'jsonb'), defaultCol('new_data', 'jsonb'), defaultCol('ip_address', 'varchar'), tsCol(),
   ] } },
-  { id: 'tbl-settings', label: 'Settings', icon: Settings, category: 'System', createTable: { name: 'settings', columns: [
+  { id: 'tbl-settings', label: 'Settings', icon: Settings, category: 'System', engine: 'sql', createTable: { name: 'settings', columns: [
     pkCol('id', 'serial'), defaultCol('key', 'varchar', { isNullable: false, isUnique: true }),
     defaultCol('value', 'jsonb', { isNullable: false }), defaultCol('group', 'varchar'), tsCol(),
   ] } },
-  { id: 'tbl-payments', label: 'Payments', icon: CreditCard, category: 'System', createTable: { name: 'payments', columns: [
+  { id: 'tbl-payments', label: 'Payments', icon: CreditCard, category: 'System', engine: 'sql', createTable: { name: 'payments', columns: [
     pkCol(), fkCol('user_id'), defaultCol('order_id', 'uuid'),
     defaultCol('amount', 'decimal', { isNullable: false }), defaultCol('currency', 'varchar', { isNullable: false, defaultValue: "'USD'" }),
     defaultCol('method', 'varchar', { isNullable: false }), defaultCol('status', 'varchar', { isNullable: false, defaultValue: "'pending'" }),
     defaultCol('provider_id', 'varchar'), defaultCol('metadata', 'jsonb'), tsCol(),
   ] } },
-  { id: 'tbl-webhooks', label: 'Webhooks', icon: Globe, category: 'System', createTable: { name: 'webhooks', columns: [
+  { id: 'tbl-webhooks', label: 'Webhooks', icon: Globe, category: 'System', engine: 'sql', createTable: { name: 'webhooks', columns: [
     pkCol(), defaultCol('url', 'text', { isNullable: false }), defaultCol('events', 'array'),
     defaultCol('secret', 'varchar'), defaultCol('is_active', 'boolean', { defaultValue: 'true' }),
     defaultCol('last_triggered_at', 'timestamptz'), tsCol(),
   ] } },
-  { id: 'tbl-jobs', label: 'Job Queue', icon: Workflow, category: 'System', createTable: { name: 'jobs', columns: [
+  { id: 'tbl-jobs', label: 'Job Queue', icon: Workflow, category: 'System', engine: 'sql', createTable: { name: 'jobs', columns: [
     pkCol(), defaultCol('queue', 'varchar', { isNullable: false, defaultValue: "'default'" }),
     defaultCol('payload', 'jsonb', { isNullable: false }), defaultCol('status', 'varchar', { isNullable: false, defaultValue: "'pending'" }),
     defaultCol('attempts', 'integer', { defaultValue: '0' }), defaultCol('max_attempts', 'integer', { defaultValue: '3' }),
-    defaultCol('scheduled_at', 'timestamptz'), defaultCol('started_at', 'timestamptz'),
-    defaultCol('completed_at', 'timestamptz'), defaultCol('error', 'text'), tsCol(),
-  ] } },
-  { id: 'tbl-addresses', label: 'Addresses', icon: MapPinned, category: 'System', createTable: { name: 'addresses', columns: [
-    pkCol(), fkCol('user_id'), defaultCol('label', 'varchar'),
-    defaultCol('line1', 'varchar', { isNullable: false }), defaultCol('line2', 'varchar'),
-    defaultCol('city', 'varchar', { isNullable: false }), defaultCol('state', 'varchar'),
-    defaultCol('postal_code', 'varchar'), defaultCol('country', 'varchar', { isNullable: false }),
-    defaultCol('is_default', 'boolean', { defaultValue: 'false' }),
+    defaultCol('scheduled_at', 'timestamptz'), defaultCol('completed_at', 'timestamptz'), defaultCol('error', 'text'), tsCol(),
   ] } },
 
-  // ── Tables: Misc ──
-  { id: 'tbl-empty', label: 'Empty Table', icon: Square, category: 'Basic', createTable: { name: 'new_table', columns: [pkCol()] } },
-  { id: 'tbl-pivot', label: 'Pivot / Junction', icon: Link2, category: 'Basic', createTable: { name: 'pivot_table', columns: [
+  // ── SQL Basic ──
+  { id: 'tbl-empty', label: 'Empty Table', icon: Square, category: 'Basic', engine: 'sql', createTable: { name: 'new_table', columns: [pkCol()] } },
+  { id: 'tbl-pivot', label: 'Pivot / Junction', icon: Link2, category: 'Basic', engine: 'sql', createTable: { name: 'pivot_table', columns: [
     pkCol('id', 'serial'), fkCol('left_id'), fkCol('right_id'), tsCol(),
   ] } },
 
-  // ── Column Types ──
-  { id: 'col-uuid', label: 'UUID', icon: Key, category: 'Columns', createColumn: defaultCol('id', 'uuid') },
-  { id: 'col-serial', label: 'Serial', icon: Hash, category: 'Columns', createColumn: defaultCol('id', 'serial') },
-  { id: 'col-varchar', label: 'Varchar', icon: Type, category: 'Columns', createColumn: defaultCol('name', 'varchar', { isNullable: false }) },
-  { id: 'col-text', label: 'Text', icon: Type, category: 'Columns', createColumn: defaultCol('content', 'text') },
-  { id: 'col-integer', label: 'Integer', icon: Hash, category: 'Columns', createColumn: defaultCol('count', 'integer', { isNullable: false, defaultValue: '0' }) },
-  { id: 'col-decimal', label: 'Decimal', icon: Hash, category: 'Columns', createColumn: defaultCol('amount', 'decimal', { isNullable: false, defaultValue: '0' }) },
-  { id: 'col-boolean', label: 'Boolean', icon: ToggleLeft, category: 'Columns', createColumn: defaultCol('is_active', 'boolean', { isNullable: false, defaultValue: 'false' }) },
-  { id: 'col-timestamp', label: 'Timestamp', icon: Clock, category: 'Columns', createColumn: tsCol() },
-  { id: 'col-json', label: 'JSONB', icon: Braces, category: 'Columns', createColumn: defaultCol('metadata', 'jsonb', { defaultValue: "'{}'" }) },
-  { id: 'col-enum', label: 'Enum', icon: CircleDot, category: 'Columns', createColumn: defaultCol('status', 'enum') },
-  { id: 'col-array', label: 'Array', icon: List, category: 'Columns', createColumn: defaultCol('tags', 'array', { defaultValue: "'{}'" }) },
-  { id: 'col-fk', label: 'Foreign Key (UUID)', icon: Link2, category: 'Columns', createColumn: fkCol('ref_id') },
-  { id: 'col-fk-int', label: 'Foreign Key (Int)', icon: Link2, category: 'Columns', createColumn: defaultCol('ref_id', 'integer', { isNullable: false }) },
+  // ══════════ NoSQL Templates ══════════
+  { id: 'nosql-users', label: 'Users', icon: Users, category: 'NoSQL Collections', engine: 'nosql', createTable: { name: 'users', kind: 'collection', columns: [
+    defaultCol('_id', 'objectId', { isPrimary: true, isNullable: false }), defaultCol('email', 'string', { isNullable: false, isUnique: true }),
+    defaultCol('name', 'string', { isNullable: false }), defaultCol('profile', 'object'), defaultCol('roles', 'array'),
+    defaultCol('createdAt', 'date', { defaultValue: 'new Date()' }),
+  ] } },
+  { id: 'nosql-posts', label: 'Posts', icon: FileText, category: 'NoSQL Collections', engine: 'nosql', createTable: { name: 'posts', kind: 'collection', columns: [
+    defaultCol('_id', 'objectId', { isPrimary: true, isNullable: false }), defaultCol('title', 'string', { isNullable: false }),
+    defaultCol('content', 'string'), defaultCol('author', 'reference'), defaultCol('tags', 'array'),
+    defaultCol('metadata', 'object'), defaultCol('published', 'boolean', { defaultValue: 'false' }),
+  ] } },
+  { id: 'nosql-products', label: 'Products', icon: ShoppingCart, category: 'NoSQL Collections', engine: 'nosql', createTable: { name: 'products', kind: 'collection', columns: [
+    defaultCol('_id', 'objectId', { isPrimary: true, isNullable: false }), defaultCol('name', 'string', { isNullable: false }),
+    defaultCol('price', 'number', { isNullable: false }), defaultCol('variants', 'array'),
+    defaultCol('attributes', 'map'), defaultCol('images', 'array'),
+  ] } },
+  { id: 'nosql-empty', label: 'Empty Collection', icon: Square, category: 'NoSQL Collections', engine: 'nosql', createTable: { name: 'new_collection', kind: 'collection', columns: [
+    defaultCol('_id', 'objectId', { isPrimary: true, isNullable: false }),
+  ] } },
 
-  // ── Constraints ──
-  { id: 'con-pk', label: 'Primary Key', icon: Key, category: 'Constraints' },
-  { id: 'con-fk', label: 'Foreign Key', icon: Link2, category: 'Constraints' },
-  { id: 'con-unique', label: 'Unique', icon: Shield, category: 'Constraints' },
-  { id: 'con-notnull', label: 'Not Null', icon: AlertCircle, category: 'Constraints' },
-  { id: 'con-check', label: 'Check Constraint', icon: Shield, category: 'Constraints' },
-  { id: 'con-default', label: 'Default Value', icon: Settings, category: 'Constraints' },
+  // ══════════ Vector Templates ══════════
+  { id: 'vec-embeddings', label: 'Embeddings', icon: Hexagon, category: 'Vector Indexes', engine: 'vector', createTable: { name: 'embeddings', kind: 'index', columns: [
+    defaultCol('id', 'uuid', { isPrimary: true, isNullable: false }), defaultCol('content', 'text', { isNullable: false }),
+    defaultCol('embedding', 'vector', { isNullable: false, dimension: 1536 }),
+    defaultCol('metadata', 'metadata'), defaultCol('namespace', 'text'),
+  ] } },
+  { id: 'vec-documents', label: 'Documents', icon: FileText, category: 'Vector Indexes', engine: 'vector', createTable: { name: 'documents', kind: 'index', columns: [
+    defaultCol('id', 'uuid', { isPrimary: true, isNullable: false }), defaultCol('title', 'text', { isNullable: false }),
+    defaultCol('body', 'text'), defaultCol('embedding', 'vector', { isNullable: false, dimension: 768 }),
+    defaultCol('source', 'text'), defaultCol('chunk_index', 'integer'),
+  ] } },
+  { id: 'vec-images', label: 'Image Vectors', icon: Image, category: 'Vector Indexes', engine: 'vector', createTable: { name: 'image_vectors', kind: 'index', columns: [
+    defaultCol('id', 'uuid', { isPrimary: true, isNullable: false }), defaultCol('image_url', 'text', { isNullable: false }),
+    defaultCol('embedding', 'vector', { isNullable: false, dimension: 512 }),
+    defaultCol('labels', 'array'), defaultCol('metadata', 'metadata'),
+  ] } },
+  { id: 'vec-empty', label: 'Empty Index', icon: Square, category: 'Vector Indexes', engine: 'vector', createTable: { name: 'new_index', kind: 'index', columns: [
+    defaultCol('id', 'uuid', { isPrimary: true, isNullable: false }), defaultCol('embedding', 'vector', { isNullable: false, dimension: 1536 }),
+  ] } },
 
-  // ── Indexes ──
-  { id: 'idx-btree', label: 'B-Tree Index', icon: Columns, category: 'Indexes' },
-  { id: 'idx-hash', label: 'Hash Index', icon: Hash, category: 'Indexes' },
-  { id: 'idx-gin', label: 'GIN Index', icon: Columns, category: 'Indexes' },
-  { id: 'idx-gist', label: 'GiST Index', icon: MapPin, category: 'Indexes' },
-  { id: 'idx-composite', label: 'Composite Index', icon: Columns, category: 'Indexes' },
+  // ══════════ Graph Templates ══════════
+  { id: 'graph-person', label: 'Person Node', icon: Users, category: 'Graph Nodes', engine: 'graph', createTable: { name: 'Person', kind: 'node', columns: [
+    defaultCol('id', 'uuid', { isPrimary: true, isNullable: false }), defaultCol('name', 'text', { isNullable: false }),
+    defaultCol('email', 'text', { isUnique: true }), defaultCol('age', 'integer'),
+    defaultCol('labels', 'node_label'),
+  ] } },
+  { id: 'graph-company', label: 'Company Node', icon: Globe, category: 'Graph Nodes', engine: 'graph', createTable: { name: 'Company', kind: 'node', columns: [
+    defaultCol('id', 'uuid', { isPrimary: true, isNullable: false }), defaultCol('name', 'text', { isNullable: false }),
+    defaultCol('industry', 'text'), defaultCol('founded', 'integer'),
+  ] } },
+  { id: 'graph-works-at', label: 'WORKS_AT Edge', icon: Network, category: 'Graph Edges', engine: 'graph', createTable: { name: 'WORKS_AT', kind: 'edge', columns: [
+    defaultCol('from', 'relationship', { isNullable: false }), defaultCol('to', 'relationship', { isNullable: false }),
+    defaultCol('since', 'date'), defaultCol('role', 'text'),
+  ] } },
+  { id: 'graph-knows', label: 'KNOWS Edge', icon: Network, category: 'Graph Edges', engine: 'graph', createTable: { name: 'KNOWS', kind: 'edge', columns: [
+    defaultCol('from', 'relationship', { isNullable: false }), defaultCol('to', 'relationship', { isNullable: false }),
+    defaultCol('weight', 'float', { defaultValue: '1.0' }),
+  ] } },
+  { id: 'graph-empty-node', label: 'Empty Node', icon: Square, category: 'Graph Nodes', engine: 'graph', createTable: { name: 'NewNode', kind: 'node', columns: [
+    defaultCol('id', 'uuid', { isPrimary: true, isNullable: false }),
+  ] } },
+
+  // ══════════ Time Series Templates ══════════
+  { id: 'ts-metrics', label: 'System Metrics', icon: Activity, category: 'Time Series', engine: 'timeseries', createTable: { name: 'system_metrics', kind: 'measurement', columns: [
+    defaultCol('time', 'time', { isPrimary: true, isNullable: false }), defaultCol('host', 'tag_ts', { isNullable: false }),
+    defaultCol('region', 'tag_ts'), defaultCol('cpu_usage', 'field', { isNullable: false }),
+    defaultCol('mem_usage', 'field'), defaultCol('disk_io', 'field'),
+  ] } },
+  { id: 'ts-events', label: 'App Events', icon: BarChart3, category: 'Time Series', engine: 'timeseries', createTable: { name: 'app_events', kind: 'measurement', columns: [
+    defaultCol('time', 'time', { isPrimary: true, isNullable: false }), defaultCol('event_type', 'tag_ts', { isNullable: false }),
+    defaultCol('user_id', 'tag_ts'), defaultCol('value', 'field'),
+    defaultCol('metadata', 'field'),
+  ] } },
+  { id: 'ts-iot', label: 'IoT Sensor Data', icon: Activity, category: 'Time Series', engine: 'timeseries', createTable: { name: 'sensor_data', kind: 'measurement', columns: [
+    defaultCol('time', 'time', { isPrimary: true, isNullable: false }), defaultCol('device_id', 'tag_ts', { isNullable: false }),
+    defaultCol('sensor_type', 'tag_ts'), defaultCol('reading', 'field', { isNullable: false }),
+    defaultCol('unit', 'tag_ts'),
+  ] } },
+
+  // ══════════ Key-Value Templates ══════════
+  { id: 'kv-cache', label: 'Cache Store', icon: Boxes, category: 'Key-Value', engine: 'keyvalue', createTable: { name: 'cache', kind: 'bucket', columns: [
+    defaultCol('key', 'key', { isPrimary: true, isNullable: false }), defaultCol('value', 'value', { isNullable: false }),
+    defaultCol('ttl', 'ttl', { defaultValue: '3600' }),
+  ] } },
+  { id: 'kv-session', label: 'Session Store', icon: Lock, category: 'Key-Value', engine: 'keyvalue', createTable: { name: 'sessions', kind: 'bucket', columns: [
+    defaultCol('session_id', 'key', { isPrimary: true, isNullable: false }), defaultCol('data', 'hash_kv'),
+    defaultCol('user_id', 'key'), defaultCol('ttl', 'ttl', { defaultValue: '86400' }),
+  ] } },
+  { id: 'kv-leaderboard', label: 'Leaderboard', icon: BarChart3, category: 'Key-Value', engine: 'keyvalue', createTable: { name: 'leaderboard', kind: 'bucket', columns: [
+    defaultCol('board_name', 'key', { isPrimary: true, isNullable: false }), defaultCol('scores', 'sorted_set'),
+  ] } },
+  { id: 'kv-queue', label: 'Message Queue', icon: List, category: 'Key-Value', engine: 'keyvalue', createTable: { name: 'message_queue', kind: 'bucket', columns: [
+    defaultCol('queue_name', 'key', { isPrimary: true, isNullable: false }), defaultCol('messages', 'list_kv'),
+  ] } },
+
+  // ── SQL Column types ──
+  { id: 'col-uuid', label: 'UUID', icon: Key, category: 'SQL Columns', engine: 'sql', createColumn: defaultCol('id', 'uuid') },
+  { id: 'col-serial', label: 'Serial', icon: Hash, category: 'SQL Columns', engine: 'sql', createColumn: defaultCol('id', 'serial') },
+  { id: 'col-varchar', label: 'Varchar', icon: Type, category: 'SQL Columns', engine: 'sql', createColumn: defaultCol('name', 'varchar', { isNullable: false }) },
+  { id: 'col-text', label: 'Text', icon: Type, category: 'SQL Columns', engine: 'sql', createColumn: defaultCol('content', 'text') },
+  { id: 'col-integer', label: 'Integer', icon: Hash, category: 'SQL Columns', engine: 'sql', createColumn: defaultCol('count', 'integer', { isNullable: false, defaultValue: '0' }) },
+  { id: 'col-decimal', label: 'Decimal', icon: Hash, category: 'SQL Columns', engine: 'sql', createColumn: defaultCol('amount', 'decimal', { isNullable: false, defaultValue: '0' }) },
+  { id: 'col-boolean', label: 'Boolean', icon: ToggleLeft, category: 'SQL Columns', engine: 'sql', createColumn: defaultCol('is_active', 'boolean', { isNullable: false, defaultValue: 'false' }) },
+  { id: 'col-timestamp', label: 'Timestamp', icon: Clock, category: 'SQL Columns', engine: 'sql', createColumn: tsCol() },
+  { id: 'col-json', label: 'JSONB', icon: Braces, category: 'SQL Columns', engine: 'sql', createColumn: defaultCol('metadata', 'jsonb', { defaultValue: "'{}'" }) },
+  { id: 'col-enum', label: 'Enum', icon: CircleDot, category: 'SQL Columns', engine: 'sql', createColumn: defaultCol('status', 'enum') },
+  { id: 'col-array', label: 'Array', icon: List, category: 'SQL Columns', engine: 'sql', createColumn: defaultCol('tags', 'array', { defaultValue: "'{}'" }) },
+  { id: 'col-fk', label: 'Foreign Key (UUID)', icon: Link2, category: 'SQL Columns', engine: 'sql', createColumn: fkCol('ref_id') },
+
+  // ── SQL Constraints & Indexes ──
+  { id: 'con-pk', label: 'Primary Key', icon: Key, category: 'Constraints', engine: 'sql' },
+  { id: 'con-fk', label: 'Foreign Key', icon: Link2, category: 'Constraints', engine: 'sql' },
+  { id: 'con-unique', label: 'Unique', icon: Shield, category: 'Constraints', engine: 'sql' },
+  { id: 'con-notnull', label: 'Not Null', icon: AlertCircle, category: 'Constraints', engine: 'sql' },
+  { id: 'idx-btree', label: 'B-Tree Index', icon: Columns, category: 'Indexes', engine: 'sql' },
+  { id: 'idx-hash', label: 'Hash Index', icon: Hash, category: 'Indexes', engine: 'sql' },
+  { id: 'idx-gin', label: 'GIN Index', icon: Columns, category: 'Indexes', engine: 'sql' },
+  { id: 'idx-gist', label: 'GiST Index', icon: MapPin, category: 'Indexes', engine: 'sql' },
 ];
 
-const elementCategories = [...new Set(dbElements.map(e => e.category))];
-
 /* ─── Parse/Generate ─── */
-function parseSchema(content?: string): { tables: DbTable[]; relations: DbRelation[] } {
+function parseSchema(content?: string): { tables: DbTable[]; relations: DbRelation[]; engine?: DbEngine } {
   if (!content) return { tables: [], relations: [] };
   try {
     const parsed = JSON.parse(content);
@@ -273,12 +407,13 @@ function parseSchema(content?: string): { tables: DbTable[]; relations: DbRelati
   return { tables: [], relations: [] };
 }
 
-function generatePreviewHtml(tables: DbTable[], relations: DbRelation[], title: string): string {
+function generatePreviewHtml(tables: DbTable[], relations: DbRelation[], title: string, engine: DbEngine): string {
+  const eLabel = entityLabel[engine];
   const tablesHtml = tables.map(t => {
     const colsHtml = t.columns.map(c =>
-      `<tr><td style="padding:6px 12px;font-size:11px;color:${c.isPrimary ? '#f59e0b' : '#e2e8f0'};font-weight:${c.isPrimary ? '700' : '400'};">${c.isPrimary ? '🔑 ' : c.reference ? '🔗 ' : ''}${c.name}</td><td style="padding:6px 12px;font-size:10px;color:#a78bfa;">${c.type}</td><td style="padding:6px 12px;font-size:9px;color:#64748b;">${c.isPrimary ? 'PK ' : ''}${c.isUnique ? 'UQ ' : ''}${!c.isNullable ? 'NN' : ''}</td></tr>`
+      `<tr><td style="padding:6px 12px;font-size:11px;color:${c.isPrimary ? '#f59e0b' : '#e2e8f0'};font-weight:${c.isPrimary ? '700' : '400'};">${c.isPrimary ? '🔑 ' : c.reference ? '🔗 ' : ''}${c.name}</td><td style="padding:6px 12px;font-size:10px;color:#a78bfa;">${c.type}${c.dimension ? `(${c.dimension})` : ''}</td><td style="padding:6px 12px;font-size:9px;color:#64748b;">${c.isPrimary ? 'PK ' : ''}${c.isUnique ? 'UQ ' : ''}${!c.isNullable ? 'NN' : ''}</td></tr>`
     ).join('');
-    return `<div style="background:#111827;border:1px solid ${t.color}40;border-radius:12px;overflow:hidden;min-width:220px;"><div style="padding:10px 16px;background:${t.color}20;border-bottom:1px solid ${t.color}30;display:flex;align-items:center;gap:8px;"><span style="font-size:12px;">🗄️</span><span style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.05em;color:${t.color};">${t.name}</span><span style="font-size:9px;color:#64748b;margin-left:auto;">${t.columns.length} cols</span></div><table style="width:100%;border-collapse:collapse;">${colsHtml}</table></div>`;
+    return `<div style="background:#111827;border:1px solid ${t.color}40;border-radius:12px;overflow:hidden;min-width:220px;"><div style="padding:10px 16px;background:${t.color}20;border-bottom:1px solid ${t.color}30;display:flex;align-items:center;gap:8px;"><span style="font-size:12px;">🗄️</span><span style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.05em;color:${t.color};">${t.name}</span><span style="font-size:9px;color:#64748b;margin-left:auto;">${t.kind || eLabel} · ${t.columns.length} cols</span></div><table style="width:100%;border-collapse:collapse;">${colsHtml}</table></div>`;
   }).join('');
   const relHtml = relations.map(r => {
     const from = tables.find(t => t.id === r.fromTableId);
@@ -288,7 +423,7 @@ function generatePreviewHtml(tables: DbTable[], relations: DbRelation[], title: 
     const toCol = to.columns.find(c => c.id === r.toColumnId);
     return `<div style="padding:8px 16px;background:#1e293b;border-radius:8px;font-size:10px;display:flex;align-items:center;gap:8px;"><span style="color:${from.color};">${from.name}.${fromCol?.name || '?'}</span><span style="color:#64748b;">→ ${r.type} →</span><span style="color:${to.color};">${to.name}.${toCol?.name || '?'}</span></div>`;
   }).join('');
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'SF Mono','Fira Code',monospace;background:#0a0a0f;color:#e2e8f0;padding:24px;}</style></head><body><h1 style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;color:#f1f5f9;margin-bottom:4px;">🗄️ ${title}</h1><div style="font-size:10px;color:#64748b;margin-bottom:24px;">${tables.length} tables, ${relations.length} relations</div><div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:24px;">${tablesHtml}</div>${relHtml ? `<div style="margin-top:16px;"><div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:8px;">Relations</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${relHtml}</div></div>` : ''}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'SF Mono','Fira Code',monospace;background:#0a0a0f;color:#e2e8f0;padding:24px;}</style></head><body><h1 style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;color:#f1f5f9;margin-bottom:4px;">🗄️ ${title} <span style="font-size:10px;color:#64748b;">[${engine.toUpperCase()}]</span></h1><div style="font-size:10px;color:#64748b;margin-bottom:24px;">${tables.length} ${eLabel.toLowerCase()}s, ${relations.length} relations</div><div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:24px;">${tablesHtml}</div>${relHtml ? `<div style="margin-top:16px;"><div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:8px;">Relations</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${relHtml}</div></div>` : ''}</body></html>`;
 }
 
 /* ─── Main Component ─── */
@@ -296,6 +431,10 @@ interface Props { node: CanvasNode; onClose: () => void; }
 
 export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
   const { updateNode } = useCanvasStore();
+  const [dbEngine, setDbEngine] = useState<DbEngine>(() => {
+    const parsed = parseSchema(node.generatedCode);
+    return parsed.engine || 'sql';
+  });
   const [schema, setSchema] = useState(() => {
     const parsed = parseSchema(node.generatedCode);
     return parsed.tables.length > 0 ? parsed : { tables: [] as DbTable[], relations: [] as DbRelation[] };
@@ -305,8 +444,13 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
   const [isDirty, setIsDirty] = useState(false);
   const [showLeftPanel, setShowLeftPanel] = useState(true);
   const [showRightPanel, setShowRightPanel] = useState(true);
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(
-    Object.fromEntries(elementCategories.map(c => [c, c === 'Auth & Users' || c === 'Content' || c === 'Columns']))
+
+  // Filter elements by engine
+  const filteredDbElements = dbElements.filter(e => !e.engine || e.engine === 'all' || e.engine === dbEngine);
+  const elementCategories = [...new Set(filteredDbElements.map(e => e.category))];
+
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(elementCategories.map(c => [c, true]))
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [history, setHistory] = useState<typeof schema[]>([schema]);
@@ -329,6 +473,12 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
 
   const selectedTable = schema.tables.find(t => t.id === selectedTableId) || null;
 
+  // Expand new categories when engine changes
+  useEffect(() => {
+    setExpandedCategories(Object.fromEntries(elementCategories.map(c => [c, true])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dbEngine]);
+
   const pushHistory = useCallback((newSchema: typeof schema) => {
     setHistory(prev => [...prev.slice(0, historyIndex + 1), newSchema]);
     setHistoryIndex(prev => prev + 1);
@@ -341,11 +491,11 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
   }, [pushHistory]);
 
   const saveToNode = useCallback(() => {
-    const code = JSON.stringify(schema, null, 2);
-    const preview = generatePreviewHtml(schema.tables, schema.relations, node.title);
+    const code = JSON.stringify({ ...schema, engine: dbEngine }, null, 2);
+    const preview = generatePreviewHtml(schema.tables, schema.relations, node.title, dbEngine);
     updateNode(node.id, { generatedCode: code, content: preview });
     setIsDirty(false);
-  }, [schema, node.id, node.title, updateNode]);
+  }, [schema, dbEngine, node.id, node.title, updateNode]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -364,28 +514,32 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
   }, [historyIndex, history]);
 
   const addTable = useCallback((template?: DbElement['createTable']) => {
+    const eKind = template?.kind || entityLabel[dbEngine].toLowerCase();
     const newTable: DbTable = {
-      id: uid(), name: template?.name || 'new_table',
+      id: uid(), name: template?.name || `new_${eKind}`,
       color: tableColors[schema.tables.length % tableColors.length],
       x: 50 + schema.tables.length * 60, y: 50 + schema.tables.length * 40,
+      kind: eKind,
       columns: (template?.columns || [{ name: 'id', type: 'uuid' as ColumnType, isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' }]).map(c => ({
         id: uid(), name: c.name, type: c.type, isPrimary: c.isPrimary || false,
         isNullable: c.isNullable ?? true, isUnique: c.isUnique || false, defaultValue: c.defaultValue || '',
+        ...(c.dimension ? { dimension: c.dimension } : {}),
       })),
     };
     updateSchema({ ...schema, tables: [...schema.tables, newTable] });
     setSelectedTableId(newTable.id);
-  }, [schema, updateSchema]);
+  }, [schema, updateSchema, dbEngine]);
 
   const addColumn = useCallback((template?: DbElement['createColumn']) => {
     if (!selectedTableId) return;
+    const colTypes = columnTypesByEngine[dbEngine];
     const newCol: DbColumn = {
-      id: uid(), name: template?.name || 'new_column', type: (template?.type as ColumnType) || 'text',
+      id: uid(), name: template?.name || 'new_column', type: (template?.type as ColumnType) || colTypes[2] || 'text',
       isPrimary: template?.isPrimary || false, isNullable: template?.isNullable ?? true,
       isUnique: template?.isUnique || false, defaultValue: template?.defaultValue || '',
     };
     updateSchema({ ...schema, tables: schema.tables.map(t => t.id === selectedTableId ? { ...t, columns: [...t.columns, newCol] } : t) });
-  }, [selectedTableId, schema, updateSchema]);
+  }, [selectedTableId, schema, updateSchema, dbEngine]);
 
   const deleteTable = useCallback((tableId: string) => {
     updateSchema({ tables: schema.tables.filter(t => t.id !== tableId), relations: schema.relations.filter(r => r.fromTableId !== tableId && r.toTableId !== tableId) });
@@ -408,7 +562,6 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
   }, [schema, updateSchema]);
 
   const addRelation = useCallback((fromTableId: string, fromColumnId: string, toTableId: string, toColumnId: string, type: RelationType = 'one-to-many') => {
-    // Avoid duplicates
     const exists = schema.relations.some(r => r.fromTableId === fromTableId && r.fromColumnId === fromColumnId && r.toTableId === toTableId && r.toColumnId === toColumnId);
     if (exists) return;
     updateSchema({ ...schema, relations: [...schema.relations, { id: uid(), fromTableId, fromColumnId, toTableId, toColumnId, type }] });
@@ -459,24 +612,22 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
   const handleTableMouseDown = useCallback((e: ReactMouseEvent, tableId: string) => {
     e.stopPropagation();
     if (connectingFrom) {
-      // Complete connection: from table → to table
       if (connectingFrom.tableId !== tableId) {
         const toTable = schema.tables.find(t => t.id === tableId);
-        const pkCol = toTable?.columns.find(c => c.isPrimary);
-        if (pkCol) {
-          // Add FK column to source table + relation
-          const fromTable = schema.tables.find(t => t.id === connectingFrom.tableId);
+        const pk = toTable?.columns.find(c => c.isPrimary);
+        if (pk) {
           const fkName = `${toTable!.name}_id`;
           const newColId = uid();
           const newCol: DbColumn = {
-            id: newColId, name: fkName, type: pkCol.type as ColumnType,
+            id: newColId, name: fkName, type: pk.type as ColumnType,
             isPrimary: false, isNullable: false, isUnique: false, defaultValue: '',
-            reference: { tableId, columnId: pkCol.id },
+            reference: { tableId, columnId: pk.id },
           };
           const newTables = schema.tables.map(t =>
             t.id === connectingFrom.tableId ? { ...t, columns: [...t.columns, newCol] } : t
           );
-          const newRel: DbRelation = { id: uid(), fromTableId: connectingFrom.tableId, fromColumnId: newColId, toTableId: tableId, toColumnId: pkCol.id, type: 'one-to-many' };
+          const defaultRelType = dbEngine === 'graph' ? 'directed' as RelationType : 'one-to-many' as RelationType;
+          const newRel: DbRelation = { id: uid(), fromTableId: connectingFrom.tableId, fromColumnId: newColId, toTableId: tableId, toColumnId: pk.id, type: defaultRelType };
           updateSchema({ tables: newTables, relations: [...schema.relations, newRel] });
         }
       }
@@ -488,9 +639,8 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
     if (!table) return;
     setDraggingTableId(tableId);
     setDragOffset({ x: e.clientX - (table.x * canvasZoom + canvasPan.x), y: e.clientY - (table.y * canvasZoom + canvasPan.y) });
-  }, [schema, canvasZoom, canvasPan, connectingFrom, updateSchema]);
+  }, [schema, canvasZoom, canvasPan, connectingFrom, updateSchema, dbEngine]);
 
-  // Start connecting from a table's connect handle
   const handleStartConnect = useCallback((e: ReactMouseEvent, tableId: string) => {
     e.stopPropagation();
     e.preventDefault();
@@ -500,37 +650,67 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
   }, [canvasPan, canvasZoom]);
 
   const filteredElements = searchQuery
-    ? dbElements.filter(e => e.label.toLowerCase().includes(searchQuery.toLowerCase()) || e.category.toLowerCase().includes(searchQuery.toLowerCase()))
-    : dbElements;
+    ? filteredDbElements.filter(e => e.label.toLowerCase().includes(searchQuery.toLowerCase()) || e.category.toLowerCase().includes(searchQuery.toLowerCase()))
+    : filteredDbElements;
+
+  const filteredCategories = [...new Set(filteredElements.map(e => e.category))];
+
+  // TABLE_WIDTH constant for relation path computation
+  const TABLE_WIDTH = 240;
 
   const getRelationPath = useCallback((rel: DbRelation) => {
     const fromTable = schema.tables.find(t => t.id === rel.fromTableId);
     const toTable = schema.tables.find(t => t.id === rel.toTableId);
     if (!fromTable || !toTable) return null;
-    const fromX = fromTable.x + 240;
+
     const fromColIdx = fromTable.columns.findIndex(c => c.id === rel.fromColumnId);
-    const fromY = fromTable.y + 44 + Math.max(0, fromColIdx) * 30 + 15;
-    const toX = toTable.x;
     const toColIdx = toTable.columns.findIndex(c => c.id === rel.toColumnId);
+
+    // Calculate Y positions based on column index (header ~44px, each col ~30px)
+    const fromY = fromTable.y + 44 + Math.max(0, fromColIdx) * 30 + 15;
     const toY = toTable.y + 44 + Math.max(0, toColIdx) * 30 + 15;
-    const midX = (fromX + toX) / 2;
-    return `M ${fromX} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${toX} ${toY}`;
+
+    // Determine if we should go from right→left or figure out best side
+    const fromCenterX = fromTable.x + TABLE_WIDTH / 2;
+    const toCenterX = toTable.x + TABLE_WIDTH / 2;
+
+    let fromX: number, toX: number;
+    if (fromCenterX <= toCenterX) {
+      fromX = fromTable.x + TABLE_WIDTH; // right edge
+      toX = toTable.x; // left edge
+    } else {
+      fromX = fromTable.x; // left edge
+      toX = toTable.x + TABLE_WIDTH; // right edge
+    }
+
+    const dx = toX - fromX;
+    const cp = Math.max(60, Math.abs(dx) * 0.4);
+    const cpSign = fromCenterX <= toCenterX ? 1 : -1;
+    return `M ${fromX} ${fromY} C ${fromX + cp * cpSign} ${fromY}, ${toX - cp * cpSign} ${toY}, ${toX} ${toY}`;
   }, [schema.tables]);
 
-  // Connection preview line
   const getConnectPreviewPath = useCallback(() => {
     if (!connectingFrom) return null;
     const fromTable = schema.tables.find(t => t.id === connectingFrom.tableId);
     if (!fromTable) return null;
-    const fromX = fromTable.x + 240;
+    const fromX = fromTable.x + TABLE_WIDTH;
     const fromY = fromTable.y + 20;
     const toX = connectMousePos.x;
     const toY = connectMousePos.y;
-    const midX = (fromX + toX) / 2;
-    return `M ${fromX} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${toX} ${toY}`;
+    const dx = toX - fromX;
+    const cp = Math.max(60, Math.abs(dx) * 0.4);
+    return `M ${fromX} ${fromY} C ${fromX + cp} ${fromY}, ${toX - cp} ${toY}, ${toX} ${toY}`;
   }, [connectingFrom, connectMousePos, schema.tables]);
 
-  const columnTypes: ColumnType[] = ['uuid', 'serial', 'text', 'varchar', 'integer', 'bigint', 'float', 'decimal', 'boolean', 'date', 'timestamp', 'timestamptz', 'json', 'jsonb', 'array', 'enum', 'bytea'];
+  const columnTypes = columnTypesByEngine[dbEngine];
+  const relTypes = relationTypesByEngine[dbEngine];
+  const eLabel = entityLabel[dbEngine];
+
+  // Compute graph-style colors for relation lines based on engine
+  const getRelColor = (rel: DbRelation) => {
+    const from = schema.tables.find(t => t.id === rel.fromTableId);
+    return from?.color || '#6366f1';
+  };
 
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col" style={{ background: '#0a0a0f' }}>
@@ -541,11 +721,30 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
             <PanelLeft className="w-4 h-4" />
           </button>
           <Database className="w-4 h-4 text-cyan-400" />
-          <span className="text-xs font-black uppercase tracking-widest text-white/80">Database Designer</span>
+          <span className="text-xs font-black uppercase tracking-widest text-white/80">DB Designer</span>
+
+          {/* Engine selector */}
+          <div className="flex items-center gap-1 ml-2 px-1 py-0.5 rounded-lg bg-white/5 border border-white/10">
+            {dbEngines.map(eng => {
+              const EngIcon = eng.icon;
+              return (
+                <button
+                  key={eng.id}
+                  onClick={() => setDbEngine(eng.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-bold transition-all ${dbEngine === eng.id ? 'bg-cyan-500/20 text-cyan-400 shadow-sm' : 'text-white/40 hover:text-white/70 hover:bg-white/5'}`}
+                  title={eng.description}
+                >
+                  <EngIcon className="w-3 h-3" />
+                  {eng.label}
+                </button>
+              );
+            })}
+          </div>
+
           <span className="text-[9px] text-white/30 ml-2">{node.title}</span>
           {connectingFrom && (
             <span className="text-[9px] font-bold text-cyan-400 animate-pulse ml-4 flex items-center gap-1">
-              <Link2 className="w-3 h-3" /> Click target table to connect...
+              <Link2 className="w-3 h-3" /> Click target {eLabel.toLowerCase()} to connect...
               <button onClick={() => setConnectingFrom(null)} className="ml-1 p-0.5 rounded bg-white/10 hover:bg-white/20"><X className="w-3 h-3" /></button>
             </span>
           )}
@@ -570,15 +769,15 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
               <div className="p-3 border-b border-white/10">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
-                  <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search elements..." className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder:text-white/30 outline-none focus:border-cyan-500/50" />
+                  <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={`Search ${eLabel.toLowerCase()}s...`} className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder:text-white/30 outline-none focus:border-cyan-500/50" />
                 </div>
               </div>
               <ScrollArea className="flex-1">
                 <div className="p-2">
-                  {elementCategories.map(cat => {
+                  {filteredCategories.map(cat => {
                     const items = filteredElements.filter(e => e.category === cat);
                     if (items.length === 0) return null;
-                    const isExpanded = expandedCategories[cat] ?? false;
+                    const isExpanded = expandedCategories[cat] ?? true;
                     return (
                       <div key={cat} className="mb-1">
                         <button onClick={() => setExpandedCategories(p => ({ ...p, [cat]: !p[cat] }))} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 text-[9px] font-black uppercase tracking-widest text-white/40">
@@ -628,71 +827,135 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
             backgroundPosition: `${canvasPan.x}px ${canvasPan.y}px`,
           }} />
 
-          {/* Relations SVG + connection preview */}
-          <svg className="absolute inset-0 pointer-events-none" style={{ transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom})`, transformOrigin: '0 0' }}>
+          {/* Relations SVG — FIXED: use width/height 9999 + overflow visible */}
+          <svg
+            className="absolute pointer-events-none"
+            style={{
+              left: 0, top: 0,
+              width: 9999, height: 9999,
+              overflow: 'visible',
+              transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom})`,
+              transformOrigin: '0 0',
+            }}
+          >
+            <defs>
+              <marker id="db-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <path d="M 0 0 L 8 3 L 0 6 Z" fill="currentColor" opacity="0.6" />
+              </marker>
+            </defs>
             {schema.relations.map(rel => {
               const path = getRelationPath(rel);
               if (!path) return null;
-              const fromTable = schema.tables.find(t => t.id === rel.fromTableId);
+              const color = getRelColor(rel);
+              const isDashed = rel.type === 'many-to-many' || rel.type === 'bidirectional';
               return (
                 <g key={rel.id}>
-                  <path d={path} fill="none" stroke={fromTable?.color || '#6366f1'} strokeWidth={1.5} strokeDasharray={rel.type === 'many-to-many' ? '6 3' : 'none'} opacity={0.5} />
-                  <path d={path} fill="none" stroke={fromTable?.color || '#6366f1'} strokeWidth={4} opacity={0.08} />
+                  {/* Glow */}
+                  <path d={path} fill="none" stroke={color} strokeWidth={6} opacity={0.06} />
+                  {/* Main line */}
+                  <path
+                    d={path}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={2}
+                    strokeDasharray={isDashed ? '8 4' : 'none'}
+                    opacity={0.7}
+                    strokeLinecap="round"
+                    markerEnd="url(#db-arrow)"
+                    style={{ color }}
+                  />
+                  {/* Animated dot */}
+                  <circle r="3" fill={color} opacity={0.8}>
+                    <animateMotion dur="3s" repeatCount="indefinite" path={path} />
+                  </circle>
+                  {/* Relation type label */}
+                  {(() => {
+                    const fromT = schema.tables.find(t => t.id === rel.fromTableId);
+                    const toT = schema.tables.find(t => t.id === rel.toTableId);
+                    if (!fromT || !toT) return null;
+                    const mx = (fromT.x + TABLE_WIDTH + toT.x) / 2;
+                    const fromColIdx = fromT.columns.findIndex(c => c.id === rel.fromColumnId);
+                    const toColIdx = toT.columns.findIndex(c => c.id === rel.toColumnId);
+                    const my = ((fromT.y + 44 + Math.max(0, fromColIdx) * 30 + 15) + (toT.y + 44 + Math.max(0, toColIdx) * 30 + 15)) / 2;
+                    const label = relTypes.find(r => r.value === rel.type)?.label || rel.type;
+                    return (
+                      <text x={mx} y={my - 8} textAnchor="middle" fill={color} fontSize="9" fontWeight="bold" opacity={0.6}>
+                        {label}
+                      </text>
+                    );
+                  })()}
                 </g>
               );
             })}
             {/* Connection preview line */}
             {connectingFrom && (() => {
               const p = getConnectPreviewPath();
-              return p ? <path d={p} fill="none" stroke="#06b6d4" strokeWidth={2} strokeDasharray="6 4" opacity={0.7} /> : null;
+              return p ? (
+                <g>
+                  <path d={p} fill="none" stroke="#06b6d4" strokeWidth={2.5} strokeDasharray="8 4" opacity={0.8}>
+                    <animate attributeName="stroke-dashoffset" from="24" to="0" dur="0.6s" repeatCount="indefinite" />
+                  </path>
+                  <circle cx={connectMousePos.x} cy={connectMousePos.y} r="5" fill="#06b6d420" stroke="#06b6d4" strokeWidth={2} />
+                </g>
+              ) : null;
             })()}
           </svg>
 
-          {/* Tables */}
+          {/* Tables / Entities */}
           <div style={{ transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom})`, transformOrigin: '0 0', position: 'absolute', inset: 0 }}>
-            {schema.tables.map(table => (
-              <div
-                key={table.id}
-                className={`absolute select-none transition-shadow ${connectingFrom ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${selectedTableId === table.id ? 'ring-2 ring-cyan-500/50' : ''} ${connectingFrom && connectingFrom.tableId !== table.id ? 'ring-2 ring-cyan-400/30 ring-offset-1' : ''}`}
-                style={{ left: table.x, top: table.y, width: 240, borderRadius: 12, overflow: 'visible', background: '#111827', border: `1px solid ${table.color}30`, boxShadow: selectedTableId === table.id ? `0 0 20px ${table.color}20` : 'none' }}
-                onMouseDown={e => handleTableMouseDown(e, table.id)}
-              >
-                {/* Connect handle (right side) */}
+            {schema.tables.map(table => {
+              const isGraphEdge = table.kind === 'edge';
+              return (
                 <div
-                  className="absolute -right-3 top-3 w-6 h-6 rounded-full bg-cyan-500/20 border-2 border-cyan-500/40 flex items-center justify-center cursor-crosshair hover:bg-cyan-500/40 hover:border-cyan-400 hover:scale-110 transition-all z-10"
-                  onMouseDown={e => handleStartConnect(e, table.id)}
-                  title="Drag to connect"
+                  key={table.id}
+                  className={`absolute select-none transition-shadow ${connectingFrom ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${selectedTableId === table.id ? 'ring-2 ring-cyan-500/50' : ''} ${connectingFrom && connectingFrom.tableId !== table.id ? 'ring-2 ring-cyan-400/30 ring-offset-1' : ''}`}
+                  style={{
+                    left: table.x, top: table.y, width: TABLE_WIDTH,
+                    borderRadius: isGraphEdge ? 20 : 12,
+                    overflow: 'visible', background: '#111827',
+                    border: `1px solid ${table.color}30`,
+                    boxShadow: selectedTableId === table.id ? `0 0 20px ${table.color}20` : 'none',
+                  }}
+                  onMouseDown={e => handleTableMouseDown(e, table.id)}
                 >
-                  <Link2 className="w-3 h-3 text-cyan-400" />
-                </div>
+                  {/* Connect handle */}
+                  <div
+                    className="absolute -right-3 top-3 w-6 h-6 rounded-full bg-cyan-500/20 border-2 border-cyan-500/40 flex items-center justify-center cursor-crosshair hover:bg-cyan-500/40 hover:border-cyan-400 hover:scale-110 transition-all z-10"
+                    onMouseDown={e => handleStartConnect(e, table.id)}
+                    title="Drag to connect"
+                  >
+                    <Link2 className="w-3 h-3 text-cyan-400" />
+                  </div>
 
-                {/* Table header */}
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-t-xl" style={{ background: `${table.color}15`, borderBottom: `1px solid ${table.color}20` }}>
-                  <Table2 className="w-3.5 h-3.5" style={{ color: table.color }} />
-                  <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: table.color }}>{table.name}</span>
-                  <span className="text-[9px] text-white/30 ml-auto">{table.columns.length}</span>
-                  <button onClick={e => { e.stopPropagation(); deleteTable(table.id); }} className="p-1 rounded hover:bg-red-500/20 text-white/20 hover:text-red-400 transition-colors">
-                    <Trash2 className="w-3 h-3" />
+                  {/* Header */}
+                  <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: `${table.color}15`, borderBottom: `1px solid ${table.color}20`, borderRadius: isGraphEdge ? '20px 20px 0 0' : '12px 12px 0 0' }}>
+                    {isGraphEdge ? <Network className="w-3.5 h-3.5" style={{ color: table.color }} /> : <Table2 className="w-3.5 h-3.5" style={{ color: table.color }} />}
+                    <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: table.color }}>{table.name}</span>
+                    <span className="text-[8px] text-white/20 ml-auto mr-1">{table.kind || eLabel}</span>
+                    <span className="text-[9px] text-white/30">{table.columns.length}</span>
+                    <button onClick={e => { e.stopPropagation(); deleteTable(table.id); }} className="p-1 rounded hover:bg-red-500/20 text-white/20 hover:text-red-400 transition-colors">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                  {/* Columns */}
+                  {table.columns.map(col => {
+                    const ColIcon = columnTypeIcons[col.type] || Type;
+                    return (
+                      <div key={col.id} className={`flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 transition-colors cursor-pointer ${selectedColumnId === col.id ? 'bg-white/5' : ''}`}
+                        onClick={e => { e.stopPropagation(); setSelectedTableId(table.id); setSelectedColumnId(col.id); setShowRightPanel(true); }}>
+                        {col.isPrimary ? <Key className="w-3 h-3 text-amber-400 shrink-0" /> : col.reference ? <Link2 className="w-3 h-3 text-purple-400 shrink-0" /> : <ColIcon className="w-3 h-3 text-white/30 shrink-0" />}
+                        <span className={`text-[11px] flex-1 truncate ${col.isPrimary ? 'font-bold text-amber-300' : 'text-white/70'}`}>{col.name}</span>
+                        <span className="text-[9px] text-purple-400/60">{col.type}{col.dimension ? `(${col.dimension})` : ''}</span>
+                        {!col.isNullable && <span className="text-[8px] text-red-400/60 shrink-0">NN</span>}
+                      </div>
+                    );
+                  })}
+                  <button onClick={e => { e.stopPropagation(); setSelectedTableId(table.id); addColumn(); }} className="w-full flex items-center gap-2 px-3 py-2 text-white/20 hover:text-white/50 hover:bg-white/5 transition-colors" style={{ borderRadius: isGraphEdge ? '0 0 20px 20px' : '0 0 12px 12px' }}>
+                    <Plus className="w-3 h-3" /><span className="text-[10px]">Add column</span>
                   </button>
                 </div>
-                {/* Columns */}
-                {table.columns.map(col => {
-                  const ColIcon = columnTypeIcons[col.type] || Type;
-                  return (
-                    <div key={col.id} className={`flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 transition-colors cursor-pointer ${selectedColumnId === col.id ? 'bg-white/5' : ''}`}
-                      onClick={e => { e.stopPropagation(); setSelectedTableId(table.id); setSelectedColumnId(col.id); setShowRightPanel(true); }}>
-                      {col.isPrimary ? <Key className="w-3 h-3 text-amber-400 shrink-0" /> : col.reference ? <Link2 className="w-3 h-3 text-purple-400 shrink-0" /> : <ColIcon className="w-3 h-3 text-white/30 shrink-0" />}
-                      <span className={`text-[11px] flex-1 truncate ${col.isPrimary ? 'font-bold text-amber-300' : 'text-white/70'}`}>{col.name}</span>
-                      <span className="text-[9px] text-purple-400/60">{col.type}</span>
-                      {!col.isNullable && <span className="text-[8px] text-red-400/60 shrink-0">NN</span>}
-                    </div>
-                  );
-                })}
-                <button onClick={e => { e.stopPropagation(); setSelectedTableId(table.id); addColumn(); }} className="w-full flex items-center gap-2 px-3 py-2 text-white/20 hover:text-white/50 hover:bg-white/5 transition-colors rounded-b-xl">
-                  <Plus className="w-3 h-3" /><span className="text-[10px]">Add column</span>
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Empty state */}
@@ -700,8 +963,8 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
                 <Database className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                <p className="text-sm font-bold text-white/20">No tables yet</p>
-                <p className="text-xs text-white/10 mt-1">Click elements in the left panel to add tables</p>
+                <p className="text-sm font-bold text-white/20">No {eLabel.toLowerCase()}s yet</p>
+                <p className="text-xs text-white/10 mt-1">Click elements in the left panel to add {eLabel.toLowerCase()}s</p>
               </div>
             </div>
           )}
@@ -713,9 +976,12 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
               <Database className="w-3 h-3 text-white/30" />
-              <span className="text-[10px] font-bold text-white/40">{schema.tables.length} tables</span>
+              <span className="text-[10px] font-bold text-white/40">{schema.tables.length} {eLabel.toLowerCase()}s</span>
               <Link2 className="w-3 h-3 text-white/30 ml-1" />
               <span className="text-[10px] font-bold text-white/40">{schema.relations.length} relations</span>
+            </div>
+            <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+              <span className="text-[10px] font-bold text-cyan-400/60">{dbEngines.find(e => e.id === dbEngine)?.description}</span>
             </div>
           </div>
         </div>
@@ -733,8 +999,13 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
                 <div className="p-3 space-y-4">
                   {/* Table name */}
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5 block">Table Name</label>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5 block">{eLabel} Name</label>
                     <input value={selectedTable.name} onChange={e => updateTable(selectedTable.id, { name: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-cyan-500/50" />
+                  </div>
+                  {/* Kind */}
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5 block">Kind</label>
+                    <span className="text-[11px] text-white/50 px-2 py-1 rounded bg-white/5 inline-block">{selectedTable.kind || eLabel.toLowerCase()}</span>
                   </div>
                   {/* Color */}
                   <div>
@@ -768,32 +1039,37 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
                                   <select value={col.type} onChange={e => updateColumn(selectedTable.id, col.id, { type: e.target.value as ColumnType })} className="w-full px-2 py-1.5 rounded bg-white/5 border border-white/10 text-[11px] text-white outline-none focus:border-cyan-500/50">
                                     {columnTypes.map(t => <option key={t} value={t}>{t}</option>)}
                                   </select>
+                                  {col.type === 'vector' || col.type === 'embedding' || col.type === 'sparse_vector' ? (
+                                    <input type="number" value={col.dimension || 1536} onChange={e => updateColumn(selectedTable.id, col.id, { dimension: parseInt(e.target.value) || 1536 })} className="w-full px-2 py-1.5 rounded bg-white/5 border border-white/10 text-[11px] text-white outline-none focus:border-cyan-500/50" placeholder="Dimension" />
+                                  ) : null}
                                   <input value={col.defaultValue} onChange={e => updateColumn(selectedTable.id, col.id, { defaultValue: e.target.value })} className="w-full px-2 py-1.5 rounded bg-white/5 border border-white/10 text-[11px] text-white outline-none focus:border-cyan-500/50" placeholder="Default value" />
                                   <div className="flex gap-2 flex-wrap">
                                     <label className="flex items-center gap-1 text-[10px] text-white/50 cursor-pointer"><input type="checkbox" checked={col.isPrimary} onChange={e => updateColumn(selectedTable.id, col.id, { isPrimary: e.target.checked })} className="rounded" /> PK</label>
                                     <label className="flex items-center gap-1 text-[10px] text-white/50 cursor-pointer"><input type="checkbox" checked={col.isNullable} onChange={e => updateColumn(selectedTable.id, col.id, { isNullable: e.target.checked })} className="rounded" /> Nullable</label>
                                     <label className="flex items-center gap-1 text-[10px] text-white/50 cursor-pointer"><input type="checkbox" checked={col.isUnique} onChange={e => updateColumn(selectedTable.id, col.id, { isUnique: e.target.checked })} className="rounded" /> Unique</label>
                                   </div>
-                                  <div>
-                                    <label className="text-[9px] font-bold text-white/30 mb-1 block">Foreign Key →</label>
-                                    <select
-                                      value={col.reference ? `${col.reference.tableId}:${col.reference.columnId}` : ''}
-                                      onChange={e => {
-                                        if (!e.target.value) { updateColumn(selectedTable.id, col.id, { reference: undefined }); return; }
-                                        const [tId, cId] = e.target.value.split(':');
-                                        updateColumn(selectedTable.id, col.id, { reference: { tableId: tId, columnId: cId } });
-                                        addRelation(selectedTable.id, col.id, tId, cId);
-                                      }}
-                                      className="w-full px-2 py-1.5 rounded bg-white/5 border border-white/10 text-[11px] text-white outline-none focus:border-cyan-500/50"
-                                    >
-                                      <option value="">None</option>
-                                      {schema.tables.filter(t => t.id !== selectedTable.id).map(t =>
-                                        t.columns.filter(c => c.isPrimary || c.isUnique).map(c => (
-                                          <option key={`${t.id}:${c.id}`} value={`${t.id}:${c.id}`}>{t.name}.{c.name}</option>
-                                        ))
-                                      )}
-                                    </select>
-                                  </div>
+                                  {dbEngine === 'sql' && (
+                                    <div>
+                                      <label className="text-[9px] font-bold text-white/30 mb-1 block">Foreign Key →</label>
+                                      <select
+                                        value={col.reference ? `${col.reference.tableId}:${col.reference.columnId}` : ''}
+                                        onChange={e => {
+                                          if (!e.target.value) { updateColumn(selectedTable.id, col.id, { reference: undefined }); return; }
+                                          const [tId, cId] = e.target.value.split(':');
+                                          updateColumn(selectedTable.id, col.id, { reference: { tableId: tId, columnId: cId } });
+                                          addRelation(selectedTable.id, col.id, tId, cId);
+                                        }}
+                                        className="w-full px-2 py-1.5 rounded bg-white/5 border border-white/10 text-[11px] text-white outline-none focus:border-cyan-500/50"
+                                      >
+                                        <option value="">None</option>
+                                        {schema.tables.filter(t => t.id !== selectedTable.id).map(t =>
+                                          t.columns.filter(c => c.isPrimary || c.isUnique).map(c => (
+                                            <option key={`${t.id}:${c.id}`} value={`${t.id}:${c.id}`}>{t.name}.{c.name}</option>
+                                          ))
+                                        )}
+                                      </select>
+                                    </div>
+                                  )}
                                 </div>
                               </motion.div>
                             )}
@@ -815,9 +1091,7 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
                           <div className="flex-1 min-w-0">
                             <span className="text-[10px] text-white/60 block truncate">{fromCol?.name} → {other?.name}.{toCol?.name}</span>
                             <select value={rel.type} onChange={e => updateSchema({ ...schema, relations: schema.relations.map(r => r.id === rel.id ? { ...r, type: e.target.value as RelationType } : r) })} className="mt-1 w-full px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] text-white/50 outline-none">
-                              <option value="one-to-one">1:1</option>
-                              <option value="one-to-many">1:N</option>
-                              <option value="many-to-many">M:N</option>
+                              {relTypes.map(rt => <option key={rt.value} value={rt.value}>{rt.label}</option>)}
                             </select>
                           </div>
                           <button onClick={() => updateSchema({ ...schema, relations: schema.relations.filter(r => r.id !== rel.id) })} className="p-1 rounded hover:bg-red-500/20 text-white/20 hover:text-red-400 shrink-0"><Trash2 className="w-2.5 h-2.5" /></button>
@@ -825,7 +1099,7 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
                       );
                     })}
                     {schema.relations.filter(r => r.fromTableId === selectedTable.id || r.toTableId === selectedTable.id).length === 0 && (
-                      <p className="text-[10px] text-white/20">No relations. Use the <Link2 className="w-3 h-3 inline" /> handle on tables to connect them.</p>
+                      <p className="text-[10px] text-white/20">No relations. Use the <Link2 className="w-3 h-3 inline" /> handle to connect.</p>
                     )}
                   </div>
                 </div>
