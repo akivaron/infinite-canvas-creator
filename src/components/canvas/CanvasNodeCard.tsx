@@ -7,7 +7,7 @@ import {
   Smartphone, Globe
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
-import { generatePageNodes, getAlternativeVariations } from './generateVariations';
+import { generateFullPageVariations, getRandomVariation } from './generateVariations';
 
 const typeConfig: Record<CanvasNode['type'], { icon: typeof Sparkles; gradient: string; label: string }> = {
   idea: { icon: Sparkles, gradient: 'from-indigo-500/20 to-violet-500/20', label: 'Idea' },
@@ -87,7 +87,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
     [node.id, selectNode, startDrag, isConnecting, finishConnecting, isLocked]
   );
 
-  /* ── Generate: show platform picker first, then create page nodes ── */
+  /* ── Generate: create full-page variation nodes ── */
   const handleGenerate = useCallback(
     (platform: 'web' | 'mobile') => {
       setShowPlatformPicker(false);
@@ -95,22 +95,22 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
       setTimeout(() => {
         updateNode(node.id, { status: 'ready' });
-        const pages = generatePageNodes(node.title, node.description, platform);
+        const variations = generateFullPageVariations(node.title, node.description, platform);
         
-        pages.forEach((page, idx) => {
+        variations.forEach((variation, idx) => {
           const newId = addNode({
             type: 'design',
-            title: page.label,
-            description: page.variation.description,
-            x: node.x + node.width + 100,
-            y: node.y + idx * 320,
-            width: 380,
-            height: 280,
+            title: variation.label,
+            description: variation.description,
+            x: node.x + node.width + 120,
+            y: node.y + idx * 380,
+            width: 420,
+            height: 360,
             status: 'ready',
-            generatedCode: page.variation.code,
-            content: page.variation.previewHtml,
+            generatedCode: variation.code,
+            content: variation.previewHtml,
             parentId: node.id,
-            pageRole: page.role,
+            pageRole: variation.category,
             platform,
           });
           connectNodes(node.id, newId);
@@ -120,34 +120,33 @@ export const CanvasNodeCard = ({ node }: Props) => {
     [node.id, node.title, node.description, node.x, node.y, node.width, updateNode, addNode, connectNodes]
   );
 
-  /* ── Regenerate: swap this design node's content with an alternative ── */
+  /* ── Regenerate: swap content with a different full-page variation ── */
   const handleRegenerate = useCallback(
     (e: MouseEvent) => {
       e.stopPropagation();
-      if (!node.pageRole || !node.platform) return;
+      if (!node.platform) return;
       updateNode(node.id, { status: 'generating' });
 
       setTimeout(() => {
-        const alternatives = getAlternativeVariations(
-          node.title, node.description, node.platform!, node.pageRole!
-        );
-        // Pick a random different one
-        const current = node.content;
-        const filtered = alternatives.filter(a => a.previewHtml !== current);
-        const pick = filtered.length > 0
-          ? filtered[Math.floor(Math.random() * filtered.length)]
-          : alternatives[Math.floor(Math.random() * alternatives.length)];
+        // Find parent idea node to get original title
+        const parentNode = node.parentId
+          ? useCanvasStore.getState().nodes.find(n => n.id === node.parentId)
+          : null;
+        const ideaTitle = parentNode?.title || node.title;
+        const ideaDesc = parentNode?.description || node.description;
+
+        const variation = getRandomVariation(ideaTitle, ideaDesc, node.platform!, node.generatedCode);
         
         updateNode(node.id, {
           status: 'ready',
-          title: pick.label,
-          description: pick.description,
-          content: pick.previewHtml,
-          generatedCode: pick.code,
+          title: variation.label,
+          description: variation.description,
+          content: variation.previewHtml,
+          generatedCode: variation.code,
         });
       }, 1200);
     },
-    [node.id, node.title, node.description, node.pageRole, node.platform, node.content, updateNode]
+    [node.id, node.title, node.description, node.parentId, node.platform, node.generatedCode, updateNode]
   );
 
   const handleRun = useCallback(
@@ -389,8 +388,8 @@ export const CanvasNodeCard = ({ node }: Props) => {
                   )}
                 </AnimatePresence>
 
-                {/* DESIGN node: Regenerate + Run */}
-                {node.type === 'design' && node.status === 'ready' && node.pageRole && (
+                {/* DESIGN node: Regenerate */}
+                {node.type === 'design' && node.status === 'ready' && node.platform && (
                   <button onClick={handleRegenerate} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-border text-foreground text-[10px] font-black uppercase tracking-widest hover:border-primary/30 transition-all">
                     <RefreshCw className="w-3 h-3" /> Regenerate
                   </button>
