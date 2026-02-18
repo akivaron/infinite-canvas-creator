@@ -11,7 +11,7 @@ export interface ElementLink {
 
 export interface CanvasNode {
   id: string;
-  type: 'idea' | 'design' | 'code' | 'import' | 'api' | 'cli';
+  type: 'idea' | 'design' | 'code' | 'import' | 'api' | 'cli' | 'database';
   title: string;
   description: string;
   x: number;
@@ -30,7 +30,7 @@ export interface CanvasNode {
   /** color tag for visual grouping */
   tag?: string;
   /** platform target */
-  platform?: 'web' | 'mobile' | 'api' | 'desktop' | 'cli';
+  platform?: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database';
   /** element-to-node links within the visual editor */
   elementLinks?: ElementLink[];
 }

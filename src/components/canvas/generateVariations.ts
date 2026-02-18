@@ -450,6 +450,110 @@ function cliVariation2(title: string, desc: string): UIVariation {
 }
 
 /* ═══════════════════════════════════════════════════
+   FULL PAGE VARIATIONS — DATABASE
+   ═══════════════════════════════════════════════════ */
+
+function databaseVariation1(title: string, desc: string): UIVariation {
+  const schema = {
+    tables: [
+      { id: 'tbl-1', name: 'users', color: '#6366f1', x: 50, y: 50, columns: [
+        { id: 'c1', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
+        { id: 'c2', name: 'email', type: 'varchar', isPrimary: false, isNullable: false, isUnique: true, defaultValue: '' },
+        { id: 'c3', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
+        { id: 'c4', name: 'created_at', type: 'timestamptz', isPrimary: false, isNullable: false, isUnique: false, defaultValue: 'now()' },
+      ] },
+      { id: 'tbl-2', name: 'posts', color: '#ec4899', x: 350, y: 50, columns: [
+        { id: 'c5', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
+        { id: 'c6', name: 'title', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
+        { id: 'c7', name: 'content', type: 'text', isPrimary: false, isNullable: true, isUnique: false, defaultValue: '' },
+        { id: 'c8', name: 'author_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
+        { id: 'c9', name: 'created_at', type: 'timestamptz', isPrimary: false, isNullable: false, isUnique: false, defaultValue: 'now()' },
+      ] },
+      { id: 'tbl-3', name: 'comments', color: '#06b6d4', x: 350, y: 280, columns: [
+        { id: 'c10', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
+        { id: 'c11', name: 'body', type: 'text', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
+        { id: 'c12', name: 'post_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-2', columnId: 'c5' } },
+        { id: 'c13', name: 'user_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
+      ] },
+    ],
+    relations: [
+      { id: 'r1', fromTableId: 'tbl-2', fromColumnId: 'c8', toTableId: 'tbl-1', toColumnId: 'c1', type: 'one-to-many' },
+      { id: 'r2', fromTableId: 'tbl-3', fromColumnId: 'c12', toTableId: 'tbl-2', toColumnId: 'c5', type: 'one-to-many' },
+      { id: 'r3', fromTableId: 'tbl-3', fromColumnId: 'c13', toTableId: 'tbl-1', toColumnId: 'c1', type: 'one-to-many' },
+    ],
+  };
+
+  return {
+    id: `var-${++variationCounter}`,
+    label: title + ' — Blog Schema',
+    description: 'Blog database with users, posts, and comments tables.',
+    category: 'dashboard',
+    previewHtml: buildDbPreview(schema, title + ' Blog Schema'),
+    code: JSON.stringify(schema, null, 2),
+  };
+}
+
+function databaseVariation2(title: string, desc: string): UIVariation {
+  const schema = {
+    tables: [
+      { id: 'tbl-1', name: 'users', color: '#6366f1', x: 50, y: 50, columns: [
+        { id: 'c1', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
+        { id: 'c2', name: 'email', type: 'varchar', isPrimary: false, isNullable: false, isUnique: true, defaultValue: '' },
+        { id: 'c3', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
+      ] },
+      { id: 'tbl-2', name: 'products', color: '#f59e0b', x: 350, y: 50, columns: [
+        { id: 'c4', name: 'id', type: 'serial', isPrimary: true, isNullable: false, isUnique: true, defaultValue: '' },
+        { id: 'c5', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
+        { id: 'c6', name: 'price', type: 'decimal', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
+        { id: 'c7', name: 'stock', type: 'integer', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
+      ] },
+      { id: 'tbl-3', name: 'orders', color: '#10b981', x: 200, y: 280, columns: [
+        { id: 'c8', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
+        { id: 'c9', name: 'user_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
+        { id: 'c10', name: 'total', type: 'decimal', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
+        { id: 'c11', name: 'status', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: "'pending'" },
+      ] },
+      { id: 'tbl-4', name: 'order_items', color: '#ec4899', x: 500, y: 280, columns: [
+        { id: 'c12', name: 'id', type: 'serial', isPrimary: true, isNullable: false, isUnique: true, defaultValue: '' },
+        { id: 'c13', name: 'order_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-3', columnId: 'c8' } },
+        { id: 'c14', name: 'product_id', type: 'integer', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-2', columnId: 'c4' } },
+        { id: 'c15', name: 'quantity', type: 'integer', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '1' },
+      ] },
+    ],
+    relations: [
+      { id: 'r1', fromTableId: 'tbl-3', fromColumnId: 'c9', toTableId: 'tbl-1', toColumnId: 'c1', type: 'one-to-many' },
+      { id: 'r2', fromTableId: 'tbl-4', fromColumnId: 'c13', toTableId: 'tbl-3', toColumnId: 'c8', type: 'one-to-many' },
+      { id: 'r3', fromTableId: 'tbl-4', fromColumnId: 'c14', toTableId: 'tbl-2', toColumnId: 'c4', type: 'one-to-many' },
+    ],
+  };
+
+  return {
+    id: `var-${++variationCounter}`,
+    label: title + ' — E-Commerce Schema',
+    description: 'E-commerce database with users, products, orders, and order items.',
+    category: 'dashboard',
+    previewHtml: buildDbPreview(schema, title + ' E-Commerce Schema'),
+    code: JSON.stringify(schema, null, 2),
+  };
+}
+
+function buildDbPreview(schema: any, title: string): string {
+  const tablesHtml = schema.tables.map((t: any) => {
+    const colsHtml = t.columns.map((c: any) =>
+      `<tr><td style="padding:4px 10px;font-size:10px;color:${c.isPrimary ? '#f59e0b' : '#e2e8f0'};">${c.isPrimary ? '🔑 ' : c.reference ? '🔗 ' : ''}${c.name}</td><td style="padding:4px 10px;font-size:9px;color:#a78bfa;">${c.type}</td></tr>`
+    ).join('');
+    return `<div style="background:#111827;border:1px solid ${t.color}40;border-radius:10px;overflow:hidden;min-width:180px;">
+      <div style="padding:8px 12px;background:${t.color}15;border-bottom:1px solid ${t.color}20;font-size:11px;font-weight:900;text-transform:uppercase;color:${t.color};">🗄️ ${t.name}</div>
+      <table style="width:100%;border-collapse:collapse;">${colsHtml}</table></div>`;
+  }).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'SF Mono',monospace;background:#0a0a0f;color:#e2e8f0;padding:20px;}</style></head><body>
+    <h1 style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px;">🗄️ ${title}</h1>
+    <div style="font-size:9px;color:#64748b;margin-bottom:20px;">${schema.tables.length} tables, ${schema.relations.length} relations</div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;">${tablesHtml}</div></body></html>`;
+}
+
+/* ═══════════════════════════════════════════════════
    EXPORTS
    ═══════════════════════════════════════════════════ */
 
@@ -457,7 +561,7 @@ function cliVariation2(title: string, desc: string): UIVariation {
 export function generateFullPageVariations(
   title: string,
   description: string,
-  platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli'
+  platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database'
 ): UIVariation[] {
   const desc = description || 'A beautifully crafted solution built with modern design principles.';
   if (platform === 'web') {
@@ -487,6 +591,9 @@ export function generateFullPageVariations(
       desktopVariation2(title, desc),
     ];
   }
+  if (platform === 'database') {
+    return [databaseVariation1(title, desc), databaseVariation2(title, desc)];
+  }
   // cli
   return [
     cliVariation1(title, desc),
@@ -498,7 +605,7 @@ export function generateFullPageVariations(
 export function getRandomVariation(
   title: string,
   description: string,
-  platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli',
+  platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database',
   excludeId?: string
 ): UIVariation {
   const all = generateFullPageVariations(title, description, platform);
@@ -536,7 +643,7 @@ function sectionHtml(content: string): string {
   ].join('\n');
 }
 
-export function generateSubSections(title: string, platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli'): SubSection[] {
+export function generateSubSections(title: string, platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database'): SubSection[] {
   const sections: SubSection[] = [
     {
       id: `sub-${++variationCounter}`,
