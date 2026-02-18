@@ -225,7 +225,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const handleDelete = useCallback((e: MouseEvent) => { e.stopPropagation(); removeNode(node.id); }, [node.id, removeNode]);
   const handlePick = useCallback((e: MouseEvent) => { e.stopPropagation(); togglePick(node.id); }, [node.id, togglePick]);
   const handleConnect = useCallback((e: MouseEvent) => { e.stopPropagation(); startConnecting(node.id); }, [node.id, startConnecting]);
-  const handleVisualEdit = useCallback((e: MouseEvent) => { e.stopPropagation(); setShowVisualEditor(true); }, []);
+  const handleVisualEdit = useCallback((e: MouseEvent) => { e.stopPropagation(); useCanvasStore.getState().endDrag(); setShowVisualEditor(true); }, []);
   const handleDuplicate = useCallback((e: MouseEvent) => { e.stopPropagation(); duplicateNode(node.id); setShowMoreMenu(false); }, [node.id, duplicateNode]);
 
   const handleSaveEdit = useCallback(() => {
@@ -520,7 +520,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
                 {/* Visual Edit - for design/code nodes with content */}
                 {(node.type === 'design' || node.type === 'code' || node.type === 'import') && node.content && (
-                  <button onClick={handleVisualEdit} className="p-3 rounded-xl border border-border text-muted-foreground hover:text-primary hover:border-primary/30 transition-all" title="Visual Edit">
+                  <button onMouseDown={(e) => e.stopPropagation()} onClick={handleVisualEdit} className="p-3 rounded-xl border border-border text-muted-foreground hover:text-primary hover:border-primary/30 transition-all" title="Visual Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
                 )}
