@@ -466,21 +466,48 @@ export const VisualEditor = ({ node, onClose }: Props) => {
     useCanvasStore.getState().connectNodes(node.id, targetNodeId);
   }, [selectedElementSelector, selectedElement, node.id]);
 
-  const handleSave = useCallback(() => {
-    iframeRef.current?.contentWindow?.postMessage({ type: 'getContent' }, '*');
-    const handler = (e: MessageEvent) => {
-      if (e.data.type === 'content') {
-        updateNode(node.id, {
-          content: e.data.html,
-          generatedCode: e.data.html,
-          elementLinks,
-        });
-        setIsDirty(false);
-        window.removeEventListener('message', handler);
-      }
-    };
-    window.addEventListener('message', handler);
+  const saveToNode = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'getContent' }, '*');
+      const handler = (e: MessageEvent) => {
+        if (e.data.type === 'content') {
+          updateNode(node.id, {
+            content: e.data.html,
+            generatedCode: e.data.html,
+            elementLinks,
+          });
+          setIsDirty(false);
+          window.removeEventListener('message', handler);
+          resolve();
+        }
+      };
+      window.addEventListener('message', handler);
+    });
   }, [node.id, updateNode, elementLinks]);
+
+  const handleSave = useCallback(() => {
+    saveToNode();
+  }, [saveToNode]);
+
+  // Auto-save: debounce save on every content change
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isDirty) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveToNode();
+    }, 1500);
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  }, [isDirty, saveToNode]);
+
+  // Auto-save on close
+  const handleClose = useCallback(() => {
+    if (isDirty) {
+      saveToNode().then(() => onClose());
+    } else {
+      onClose();
+    }
+  }, [isDirty, saveToNode, onClose]);
 
   const handleUndo = useCallback(() => {
     if (historyIndex > 0) setHistoryIndex(prev => prev - 1);
@@ -573,7 +600,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
           >
             <Save className="w-3 h-3" /> Save
           </button>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all ml-1">
+          <button onClick={handleClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all ml-1">
             <X className="w-4 h-4" />
           </button>
         </div>
