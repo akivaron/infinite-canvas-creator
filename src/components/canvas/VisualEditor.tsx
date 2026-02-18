@@ -610,13 +610,13 @@ export const VisualEditor = ({ node, onClose }: Props) => {
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left panel: Elements & Templates */}
         {showLeftPanel && (
-          <div className="w-60 border-r border-border bg-card/90 backdrop-blur flex flex-col shrink-0 overflow-hidden">
+          <div className="w-60 border-r border-border bg-card/90 backdrop-blur flex flex-col shrink-0 overflow-hidden" onWheel={(e) => e.stopPropagation()}>
             <ElementsTemplatesPanel onInsertElement={handleInsertFromPanel} />
           </div>
         )}
         {/* Canvas */}
         <div
-          className="flex-1 overflow-auto bg-secondary/20 flex items-center justify-center"
+          className="flex-1 overflow-hidden bg-secondary/20 flex items-center justify-center"
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
           onDrop={(e) => {
             e.preventDefault();

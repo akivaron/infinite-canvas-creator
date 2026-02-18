@@ -41,7 +41,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const {
     selectedNodeId, selectNode, startDrag, updateNode, removeNode, duplicateNode,
     togglePick, connectingFromId, startConnecting, finishConnecting,
-    addNode, connectNodes,
+    addNode, connectNodes, setPan, setZoom, zoom, panX, panY,
   } = useCanvasStore();
 
   const isSelected = selectedNodeId === node.id;
@@ -104,13 +104,14 @@ export const CanvasNodeCard = ({ node }: Props) => {
         const count = variations.length;
         const totalHeight = count * 340 + (count - 1) * 40;
         const startY = node.y + (node.height || 150) / 2 - totalHeight / 2;
+        const newX = node.x + node.width + 200;
 
         variations.forEach((variation, idx) => {
           const newId = addNode({
             type: 'design',
             title: variation.label,
             description: variation.description,
-            x: node.x + node.width + 200,
+            x: newX,
             y: startY + idx * 380,
             width: 420,
             height: 340,
@@ -123,9 +124,16 @@ export const CanvasNodeCard = ({ node }: Props) => {
           });
           connectNodes(node.id, newId);
         });
+
+        // Auto-pan canvas to center between source and new nodes
+        const centerX = node.x + (newX + 420 - node.x) / 2;
+        const centerY = startY + totalHeight / 2;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        setPan(vw / 2 - centerX * zoom, vh / 2 - centerY * zoom);
       }, 1800);
     },
-    [node.id, node.title, node.description, node.x, node.y, node.width, updateNode, addNode, connectNodes]
+    [node.id, node.title, node.description, node.x, node.y, node.width, node.height, updateNode, addNode, connectNodes, setPan, zoom]
   );
 
   /* ── Regenerate: swap content with a different full-page variation ── */
@@ -174,12 +182,13 @@ export const CanvasNodeCard = ({ node }: Props) => {
         const totalHeight = count * cardH + (count - 1) * gap;
         const startY = node.y + (node.height || 150) / 2 - totalHeight / 2;
 
+        const newX = node.x + node.width + 200;
         subSections.forEach((section, idx) => {
           const newId = addNode({
             type: 'design',
             title: section.label,
             description: section.description,
-            x: node.x + node.width + 200,
+            x: newX,
             y: startY + idx * (cardH + gap),
             width: 380,
             height: cardH,
@@ -192,9 +201,16 @@ export const CanvasNodeCard = ({ node }: Props) => {
           });
           connectNodes(node.id, newId);
         });
+
+        // Auto-pan to center on new nodes
+        const centerX = node.x + (newX + 380 - node.x) / 2;
+        const centerY = startY + totalHeight / 2;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        setPan(vw / 2 - centerX * zoom, vh / 2 - centerY * zoom);
       }, 1500);
     },
-    [node.id, node.title, node.x, node.y, node.width, node.height, node.platform, updateNode, addNode, connectNodes]
+    [node.id, node.title, node.x, node.y, node.width, node.height, node.platform, updateNode, addNode, connectNodes, setPan, zoom]
   );
 
   const handleRun = useCallback(
@@ -204,11 +220,12 @@ export const CanvasNodeCard = ({ node }: Props) => {
       setTimeout(() => {
         updateNode(node.id, { status: 'ready' });
         const previewHtml = buildRunPreview(node.title, node.description);
+        const newX = node.x + node.width + 80;
         const newId = addNode({
           type: 'code',
           title: '▶ ' + node.title,
           description: 'Live preview of the running application.',
-          x: node.x + node.width + 80,
+          x: newX,
           y: node.y,
           width: 520,
           height: 460,
@@ -217,9 +234,16 @@ export const CanvasNodeCard = ({ node }: Props) => {
           content: previewHtml,
         });
         connectNodes(node.id, newId);
+
+        // Auto-pan to center between source and run node
+        const centerX = node.x + (newX + 520 - node.x) / 2;
+        const centerY = node.y + 230;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        setPan(vw / 2 - centerX * zoom, vh / 2 - centerY * zoom);
       }, 2500);
     },
-    [node.id, node.title, node.description, node.x, node.y, node.width, updateNode, addNode, connectNodes]
+    [node.id, node.title, node.description, node.x, node.y, node.width, updateNode, addNode, connectNodes, setPan, zoom]
   );
 
   const handleDelete = useCallback((e: MouseEvent) => { e.stopPropagation(); removeNode(node.id); }, [node.id, removeNode]);
