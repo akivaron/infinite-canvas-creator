@@ -1,13 +1,14 @@
 import { useCallback, useState, useRef, useEffect, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Code, FileCode, Upload, Play, Trash2, Monitor, Star, Link,
+  Sparkles, Code, FileCode, Upload, Play, Trash2, Monitor, Star,
   Edit3, Check, X, Copy, Tag, RefreshCw,
   MoreHorizontal, Lock, Unlock, Minimize2, Maximize2, ChevronDown,
-  Smartphone, Globe, ArrowRight, Layers
+  Smartphone, Globe, ArrowRight, Layers, Pencil
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { generateFullPageVariations, getRandomVariation, generateSubSections } from './generateVariations';
+import { VisualEditor } from './VisualEditor';
 
 const typeConfig: Record<CanvasNode['type'], { icon: typeof Sparkles; gradient: string; label: string }> = {
   idea: { icon: Sparkles, gradient: 'from-indigo-500/20 to-violet-500/20', label: 'Idea' },
@@ -55,6 +56,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const [isLocked, setIsLocked] = useState(false);
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
   const [showNextMenu, setShowNextMenu] = useState(false);
+  const [showVisualEditor, setShowVisualEditor] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -222,6 +224,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const handleDelete = useCallback((e: MouseEvent) => { e.stopPropagation(); removeNode(node.id); }, [node.id, removeNode]);
   const handlePick = useCallback((e: MouseEvent) => { e.stopPropagation(); togglePick(node.id); }, [node.id, togglePick]);
   const handleConnect = useCallback((e: MouseEvent) => { e.stopPropagation(); startConnecting(node.id); }, [node.id, startConnecting]);
+  const handleVisualEdit = useCallback((e: MouseEvent) => { e.stopPropagation(); setShowVisualEditor(true); }, []);
   const handleDuplicate = useCallback((e: MouseEvent) => { e.stopPropagation(); duplicateNode(node.id); setShowMoreMenu(false); }, [node.id, duplicateNode]);
 
   const handleSaveEdit = useCallback(() => {
@@ -397,7 +400,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
               {/* Connection count */}
               {node.connectedTo.length > 0 && (
                 <div className="mb-3 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/10">
-                  <Link className="w-3 h-3 text-primary" />
+                  <Layers className="w-3 h-3 text-primary" />
                   <span className="text-[10px] font-bold text-primary">{node.connectedTo.length} connection{node.connectedTo.length > 1 ? 's' : ''}</span>
                 </div>
               )}
@@ -514,10 +517,12 @@ export const CanvasNodeCard = ({ node }: Props) => {
                   </button>
                 )}
 
-                {/* Connect */}
-                <button onClick={handleConnect} className="p-3 rounded-xl border border-border text-muted-foreground hover:text-primary hover:border-primary/30 transition-all" title="Connect">
-                  <Link className="w-4 h-4" />
-                </button>
+                {/* Visual Edit - for design/code nodes with content */}
+                {(node.type === 'design' || node.type === 'code' || node.type === 'import') && node.content && (
+                  <button onClick={handleVisualEdit} className="p-3 rounded-xl border border-border text-muted-foreground hover:text-primary hover:border-primary/30 transition-all" title="Visual Edit">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
 
                 {/* Delete */}
                 <button onClick={handleDelete} className="p-3 rounded-xl border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all" title="Delete">
@@ -538,6 +543,13 @@ export const CanvasNodeCard = ({ node }: Props) => {
           </div>
         )}
       </div>
+
+      {/* Visual Editor overlay */}
+      <AnimatePresence>
+        {showVisualEditor && (
+          <VisualEditor node={node} onClose={() => setShowVisualEditor(false)} />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
