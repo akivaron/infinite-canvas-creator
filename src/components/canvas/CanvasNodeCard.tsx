@@ -110,7 +110,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
         variations.forEach((variation, idx) => {
           const newId = addNode({
-            type: 'design',
+            type: platform === 'api' ? 'api' : 'design',
             title: variation.label,
             description: variation.description,
             x: newX,
@@ -187,7 +187,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         const newX = node.x + node.width + 200;
         subSections.forEach((section, idx) => {
           const newId = addNode({
-            type: 'design',
+            type: node.platform === 'api' ? 'api' : 'design',
             title: section.label,
             description: section.description,
             x: newX,
