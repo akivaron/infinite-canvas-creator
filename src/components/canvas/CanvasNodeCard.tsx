@@ -40,18 +40,130 @@ export const CanvasNodeCard = ({ node }: Props) => {
     (e: MouseEvent) => {
       e.stopPropagation();
       updateNode(node.id, { status: 'generating' });
-      // Simulate generation
+
+      const variations = [
+        {
+          label: 'Web – Dashboard',
+          desc: 'Desktop dashboard with sidebar nav, analytics cards, and chart widgets.',
+          code: `// Web Dashboard – Generated from "${node.title}"
+import React from 'react';
+
+export default function Dashboard() {
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-[#050505] flex">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white dark:bg-[#0c0c0e] border-r border-slate-200 dark:border-[#1c1c1f] p-6 flex flex-col gap-4">
+        <h1 className="text-[10px] font-black uppercase tracking-widest">Dashboard</h1>
+        {['Overview','Analytics','Users','Settings'].map(i => (
+          <button key={i} className="text-left px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-[#18181b] transition">{i}</button>
+        ))}
+      </aside>
+      {/* Main */}
+      <main className="flex-1 p-8">
+        <h2 className="text-4xl font-black tracking-tight uppercase mb-8">${node.title}</h2>
+        <div className="grid grid-cols-3 gap-6">
+          {['Revenue','Users','Orders'].map(m => (
+            <div key={m} className="p-6 rounded-[2.5rem] bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-[#1c1c1f]">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{m}</p>
+              <p className="text-3xl font-black mt-2">{Math.floor(Math.random()*9000+1000)}</p>
+            </div>
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}`,
+        },
+        {
+          label: 'Mobile – App Screen',
+          desc: 'Mobile-first app screen with bottom tab bar, header, and content cards.',
+          code: `// Mobile App – Generated from "${node.title}"
+import React from 'react';
+
+export default function MobileApp() {
+  return (
+    <div className="w-[390px] h-[844px] mx-auto bg-slate-50 dark:bg-[#050505] rounded-[2.5rem] border border-slate-200 dark:border-[#1c1c1f] overflow-hidden flex flex-col">
+      {/* Status bar */}
+      <div className="px-6 pt-4 pb-2 flex justify-between items-center">
+        <span className="text-[10px] font-black">9:41</span>
+        <span className="text-[10px] font-black uppercase tracking-widest">${node.title}</span>
+        <span className="text-[10px]">●●●</span>
+      </div>
+      {/* Content */}
+      <div className="flex-1 px-4 py-6 space-y-4 overflow-y-auto">
+        {['Welcome back','Recent activity','Quick actions'].map(s => (
+          <div key={s} className="p-5 rounded-2xl bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-[#1c1c1f]">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{s}</p>
+            <p className="text-xs text-slate-500 dark:text-gray-400 font-medium leading-relaxed">Tap to explore more details and insights.</p>
+          </div>
+        ))}
+      </div>
+      {/* Tab bar */}
+      <div className="flex justify-around py-4 border-t border-slate-200 dark:border-[#1c1c1f] bg-white dark:bg-[#0c0c0e]">
+        {['Home','Search','Profile'].map(t => (
+          <button key={t} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-500 transition">{t}</button>
+        ))}
+      </div>
+    </div>
+  );
+}`,
+        },
+        {
+          label: 'Web – Landing Page',
+          desc: 'Marketing landing page with hero section, features grid, and CTA.',
+          code: `// Landing Page – Generated from "${node.title}"
+import React from 'react';
+
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-[#050505]">
+      {/* Hero */}
+      <section className="max-w-4xl mx-auto text-center py-24 px-6">
+        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-4">Introducing</p>
+        <h1 className="text-4xl font-black tracking-tight uppercase mb-6">${node.title}</h1>
+        <p className="text-xs text-slate-500 dark:text-gray-400 font-medium leading-relaxed max-w-xl mx-auto mb-8">${node.description}</p>
+        <button className="px-8 py-3.5 bg-slate-900 dark:bg-white text-white dark:text-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all">Get Started</button>
+      </section>
+      {/* Features */}
+      <section className="max-w-5xl mx-auto px-6 pb-24 grid grid-cols-3 gap-6">
+        {['Fast','Secure','Scalable'].map(f => (
+          <div key={f} className="p-6 rounded-[2.5rem] bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-[#1c1c1f] hover:border-indigo-500/30 transition">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-4">
+              <span className="text-indigo-500 font-black">✦</span>
+            </div>
+            <h3 className="text-lg font-black tracking-tight uppercase mb-2">{f}</h3>
+            <p className="text-xs text-slate-500 dark:text-gray-400 font-medium leading-relaxed">Built with modern best practices for optimal performance.</p>
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}`,
+        },
+      ];
+
+      // Shuffle and pick 2-3 variations
+      const shuffled = variations.sort(() => Math.random() - 0.5);
+      const count = Math.random() > 0.5 ? 3 : 2;
+      const picked = shuffled.slice(0, count);
+
       setTimeout(() => {
-        const designs = [
-          'A sleek dashboard with analytics cards, charts, and a sidebar navigation.',
-          'A modern e-commerce product grid with filters and cart functionality.',
-          'A social media feed with infinite scroll, reactions, and comments.',
-          'A project management board with kanban columns and drag-and-drop.',
-          'A real-time chat interface with message bubbles and typing indicators.',
-        ];
-        updateNode(node.id, {
-          status: 'ready',
-          generatedCode: `// Generated from: "${node.title}"\n// ${designs[Math.floor(Math.random() * designs.length)]}\n\nexport default function GeneratedComponent() {\n  return (\n    <div className="p-8 rounded-[2.5rem] bg-card border border-border">\n      <h2 className="brand-heading">${node.title}</h2>\n      <p className="brand-description mt-4">${node.description}</p>\n    </div>\n  );\n}`,
+        updateNode(node.id, { status: 'ready' });
+
+        const { addNode, connectNodes } = useCanvasStore.getState();
+        picked.forEach((v, i) => {
+          const newId = addNode({
+            type: 'design',
+            title: v.label,
+            description: v.desc,
+            x: node.x + node.width + 80,
+            y: node.y + i * 320,
+            width: 360,
+            height: 300,
+            status: 'ready',
+            generatedCode: v.code,
+          });
+          connectNodes(node.id, newId);
         });
       }, 2000);
     },
