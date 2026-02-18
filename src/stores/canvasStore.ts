@@ -11,7 +11,7 @@ export interface ElementLink {
 
 export interface CanvasNode {
   id: string;
-  type: 'idea' | 'design' | 'code' | 'import' | 'api';
+  type: 'idea' | 'design' | 'code' | 'import' | 'api' | 'cli';
   title: string;
   description: string;
   x: number;

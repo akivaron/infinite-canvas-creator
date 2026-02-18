@@ -11,6 +11,7 @@ import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { generateFullPageVariations, getRandomVariation, generateSubSections } from './generateVariations';
 import { VisualEditor } from './VisualEditor';
 import { ApiVisualEditor } from './ApiVisualEditor';
+import { CliVisualEditor } from './CliVisualEditor';
 
 const typeConfig: Record<CanvasNode['type'], { icon: typeof Sparkles; gradient: string; label: string }> = {
   idea: { icon: Sparkles, gradient: 'from-indigo-500/20 to-violet-500/20', label: 'Idea' },
@@ -18,6 +19,7 @@ const typeConfig: Record<CanvasNode['type'], { icon: typeof Sparkles; gradient: 
   code: { icon: FileCode, gradient: 'from-amber-500/20 to-orange-500/20', label: 'Code' },
   import: { icon: Upload, gradient: 'from-sky-500/20 to-blue-500/20', label: 'Import' },
   api: { icon: Server, gradient: 'from-rose-500/20 to-pink-500/20', label: 'API' },
+  cli: { icon: Terminal, gradient: 'from-emerald-500/20 to-lime-500/20', label: 'CLI' },
 };
 
 const statusColors: Record<CanvasNode['status'], string> = {
@@ -110,7 +112,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
         variations.forEach((variation, idx) => {
           const newId = addNode({
-            type: platform === 'api' ? 'api' : 'design',
+            type: platform === 'api' ? 'api' : platform === 'cli' ? 'cli' : 'design',
             title: variation.label,
             description: variation.description,
             x: newX,
@@ -187,7 +189,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         const newX = node.x + node.width + 200;
         subSections.forEach((section, idx) => {
           const newId = addNode({
-            type: node.platform === 'api' ? 'api' : 'design',
+            type: node.platform === 'api' ? 'api' : node.platform === 'cli' ? 'cli' : 'design',
             title: section.label,
             description: section.description,
             x: newX,
@@ -568,6 +570,11 @@ export const CanvasNodeCard = ({ node }: Props) => {
                     <Server className="w-4 h-4" />
                   </button>
                 )}
+                {node.type === 'cli' && (node.content || node.generatedCode || node.status === 'ready') && (
+                  <button onMouseDown={(e) => e.stopPropagation()} onClick={handleVisualEdit} className="p-3 rounded-xl border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-all" title="CLI Builder">
+                    <Terminal className="w-4 h-4" />
+                  </button>
+                )}
 
                 {/* Delete */}
                 <button onClick={handleDelete} className="p-3 rounded-xl border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all" title="Delete">
@@ -594,7 +601,11 @@ export const CanvasNodeCard = ({ node }: Props) => {
         <ApiVisualEditor node={node} onClose={() => setShowVisualEditor(false)} />,
         document.body
       )}
-      {showVisualEditor && node.type !== 'api' && createPortal(
+      {showVisualEditor && node.type === 'cli' && createPortal(
+        <CliVisualEditor node={node} onClose={() => setShowVisualEditor(false)} />,
+        document.body
+      )}
+      {showVisualEditor && node.type !== 'api' && node.type !== 'cli' && createPortal(
         <VisualEditor node={node} onClose={() => setShowVisualEditor(false)} />,
         document.body
       )}
