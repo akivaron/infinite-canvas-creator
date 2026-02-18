@@ -5,13 +5,14 @@ import {
   Sparkles, Code, FileCode, Upload, Play, Trash2, Monitor, Star,
   Edit3, Check, X, Copy, Tag, RefreshCw,
   MoreHorizontal, Lock, Unlock, Minimize2, Maximize2, ChevronDown,
-  Smartphone, Globe, ArrowRight, Layers, Pencil, Server, MonitorDot, Terminal
+  Smartphone, Globe, ArrowRight, Layers, Pencil, Server, MonitorDot, Terminal, Database
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { generateFullPageVariations, getRandomVariation, generateSubSections } from './generateVariations';
 import { VisualEditor } from './VisualEditor';
 import { ApiVisualEditor } from './ApiVisualEditor';
 import { CliVisualEditor } from './CliVisualEditor';
+import { DatabaseVisualEditor } from './DatabaseVisualEditor';
 
 const typeConfig: Record<CanvasNode['type'], { icon: typeof Sparkles; gradient: string; label: string }> = {
   idea: { icon: Sparkles, gradient: 'from-indigo-500/20 to-violet-500/20', label: 'Idea' },
@@ -20,6 +21,7 @@ const typeConfig: Record<CanvasNode['type'], { icon: typeof Sparkles; gradient: 
   import: { icon: Upload, gradient: 'from-sky-500/20 to-blue-500/20', label: 'Import' },
   api: { icon: Server, gradient: 'from-rose-500/20 to-pink-500/20', label: 'API' },
   cli: { icon: Terminal, gradient: 'from-emerald-500/20 to-lime-500/20', label: 'CLI' },
+  database: { icon: Database, gradient: 'from-cyan-500/20 to-blue-500/20', label: 'Database' },
 };
 
 const statusColors: Record<CanvasNode['status'], string> = {
@@ -97,7 +99,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
   /* ── Generate: create full-page variation nodes ── */
   const handleGenerate = useCallback(
-    (platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli') => {
+    (platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database') => {
       setShowPlatformPicker(false);
       updateNode(node.id, { status: 'generating', platform });
 
@@ -112,7 +114,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
         variations.forEach((variation, idx) => {
           const newId = addNode({
-            type: platform === 'api' ? 'api' : platform === 'cli' ? 'cli' : 'design',
+            type: platform === 'api' ? 'api' : platform === 'cli' ? 'cli' : platform === 'database' ? 'database' : 'design',
             title: variation.label,
             description: variation.description,
             x: newX,
@@ -189,7 +191,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         const newX = node.x + node.width + 200;
         subSections.forEach((section, idx) => {
           const newId = addNode({
-            type: node.platform === 'api' ? 'api' : node.platform === 'cli' ? 'cli' : 'design',
+            type: node.platform === 'api' ? 'api' : node.platform === 'cli' ? 'cli' : node.platform === 'database' ? 'database' : 'design',
             title: section.label,
             description: section.description,
             x: newX,
@@ -470,6 +472,9 @@ export const CanvasNodeCard = ({ node }: Props) => {
                         <button onClick={() => handleGenerate('cli')} className="flex-1 py-2.5 rounded-xl border border-border text-foreground text-[10px] font-black uppercase tracking-widest hover:border-primary/30 hover:bg-secondary/50 transition-all flex items-center justify-center gap-2">
                           <Terminal className="w-3.5 h-3.5" /> CLI
                         </button>
+                        <button onClick={() => handleGenerate('database')} className="flex-1 py-2.5 rounded-xl border-2 border-cyan-500/50 text-cyan-400 text-[10px] font-black uppercase tracking-widest hover:bg-cyan-500/10 transition-all flex items-center justify-center gap-2">
+                          <Database className="w-3.5 h-3.5" /> DB
+                        </button>
                         <button onClick={() => setShowPlatformPicker(false)} className="p-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground transition-all">
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -575,6 +580,11 @@ export const CanvasNodeCard = ({ node }: Props) => {
                     <Terminal className="w-4 h-4" />
                   </button>
                 )}
+                {node.type === 'database' && (node.content || node.generatedCode || node.status === 'ready') && (
+                  <button onMouseDown={(e) => e.stopPropagation()} onClick={handleVisualEdit} className="p-3 rounded-xl border border-cyan-500/30 text-cyan-400 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-cyan-500/10 transition-all" title="Database Designer">
+                    <Database className="w-4 h-4" />
+                  </button>
+                )}
 
                 {/* Delete */}
                 <button onClick={handleDelete} className="p-3 rounded-xl border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all" title="Delete">
@@ -605,7 +615,11 @@ export const CanvasNodeCard = ({ node }: Props) => {
         <CliVisualEditor node={node} onClose={() => setShowVisualEditor(false)} />,
         document.body
       )}
-      {showVisualEditor && node.type !== 'api' && node.type !== 'cli' && createPortal(
+      {showVisualEditor && node.type === 'database' && createPortal(
+        <DatabaseVisualEditor node={node} onClose={() => setShowVisualEditor(false)} />,
+        document.body
+      )}
+      {showVisualEditor && node.type !== 'api' && node.type !== 'cli' && node.type !== 'database' && createPortal(
         <VisualEditor node={node} onClose={() => setShowVisualEditor(false)} />,
         document.body
       )}
