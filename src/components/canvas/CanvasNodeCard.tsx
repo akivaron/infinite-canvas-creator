@@ -5,7 +5,7 @@ import {
   Sparkles, Code, FileCode, Upload, Play, Trash2, Monitor, Star,
   Edit3, Check, X, Copy, Tag, RefreshCw,
   MoreHorizontal, Lock, Unlock, Minimize2, Maximize2, ChevronDown,
-  Smartphone, Globe, ArrowRight, Layers, Pencil, Server, MonitorDot, Terminal, Database
+  Smartphone, Globe, ArrowRight, Layers, Pencil, Server, MonitorDot, Terminal, Database, Code2
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { generateFullPageVariations, getRandomVariation, generateSubSections } from './generateVariations';
@@ -13,6 +13,7 @@ import { VisualEditor } from './VisualEditor';
 import { ApiVisualEditor } from './ApiVisualEditor';
 import { CliVisualEditor } from './CliVisualEditor';
 import { DatabaseVisualEditor } from './DatabaseVisualEditor';
+import { CodeEditor } from './CodeEditor';
 
 const typeConfig: Record<CanvasNode['type'], { icon: typeof Sparkles; gradient: string; label: string }> = {
   idea: { icon: Sparkles, gradient: 'from-indigo-500/20 to-violet-500/20', label: 'Idea' },
@@ -64,6 +65,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
   const [showNextMenu, setShowNextMenu] = useState(false);
   const [showVisualEditor, setShowVisualEditor] = useState(false);
+  const [showCodeEditor, setShowCodeEditor] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -256,6 +258,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const handlePick = useCallback((e: MouseEvent) => { e.stopPropagation(); togglePick(node.id); }, [node.id, togglePick]);
   const handleConnect = useCallback((e: MouseEvent) => { e.stopPropagation(); startConnecting(node.id); }, [node.id, startConnecting]);
   const handleVisualEdit = useCallback((e: MouseEvent) => { e.stopPropagation(); useCanvasStore.getState().endDrag(); setShowVisualEditor(true); }, []);
+  const handleCodeEdit = useCallback((e: MouseEvent) => { e.stopPropagation(); useCanvasStore.getState().endDrag(); setShowCodeEditor(true); }, []);
   const handleDuplicate = useCallback((e: MouseEvent) => { e.stopPropagation(); duplicateNode(node.id); setShowMoreMenu(false); }, [node.id, duplicateNode]);
 
   const handleSaveEdit = useCallback(() => {
@@ -586,6 +589,13 @@ export const CanvasNodeCard = ({ node }: Props) => {
                   </button>
                 )}
 
+                {/* Code Editor - for all node types */}
+                {node.type !== 'idea' && (node.content || node.generatedCode || node.status === 'ready') && (
+                  <button onMouseDown={(e) => e.stopPropagation()} onClick={handleCodeEdit} className="p-3 rounded-xl border border-amber-500/30 text-amber-400 hover:text-amber-300 hover:border-amber-500/50 hover:bg-amber-500/10 transition-all" title="Code Editor">
+                    <Code2 className="w-4 h-4" />
+                  </button>
+                )}
+
                 {/* Delete */}
                 <button onClick={handleDelete} className="p-3 rounded-xl border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all" title="Delete">
                   <Trash2 className="w-4 h-4" />
@@ -621,6 +631,10 @@ export const CanvasNodeCard = ({ node }: Props) => {
       )}
       {showVisualEditor && node.type !== 'api' && node.type !== 'cli' && node.type !== 'database' && createPortal(
         <VisualEditor node={node} onClose={() => setShowVisualEditor(false)} />,
+        document.body
+      )}
+      {showCodeEditor && createPortal(
+        <CodeEditor node={node} onClose={() => setShowCodeEditor(false)} />,
         document.body
       )}
     </motion.div>
