@@ -567,23 +567,23 @@ export const CanvasNodeCard = ({ node }: Props) => {
                   </button>
                 )}
 
-                {/* Visual Edit - for design/code nodes with content */}
-                {(node.type === 'design' || node.type === 'code' || node.type === 'import') && node.content && (
+                {/* Visual Edit - for design nodes (web/mobile/desktop) */}
+                {(node.type === 'design' || node.type === 'import') && (
                   <button onMouseDown={(e) => e.stopPropagation()} onClick={handleVisualEdit} className="p-3 rounded-xl border border-border text-muted-foreground hover:text-primary hover:border-primary/30 transition-all" title="Visual Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
                 )}
-                {node.type === 'api' && (node.content || node.generatedCode || node.status === 'ready') && (
+                {node.type === 'api' && (
                   <button onMouseDown={(e) => e.stopPropagation()} onClick={handleVisualEdit} className="p-3 rounded-xl border border-rose-500/30 text-rose-400 hover:text-rose-300 hover:border-rose-500/50 hover:bg-rose-500/10 transition-all" title="API Builder">
                     <Server className="w-4 h-4" />
                   </button>
                 )}
-                {node.type === 'cli' && (node.content || node.generatedCode || node.status === 'ready') && (
+                {node.type === 'cli' && (
                   <button onMouseDown={(e) => e.stopPropagation()} onClick={handleVisualEdit} className="p-3 rounded-xl border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-all" title="CLI Builder">
                     <Terminal className="w-4 h-4" />
                   </button>
                 )}
-                {node.type === 'database' && (node.content || node.generatedCode || node.status === 'ready') && (
+                {node.type === 'database' && (
                   <button onMouseDown={(e) => e.stopPropagation()} onClick={handleVisualEdit} className="p-3 rounded-xl border border-cyan-500/30 text-cyan-400 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-cyan-500/10 transition-all" title="Database Designer">
                     <Database className="w-4 h-4" />
                   </button>

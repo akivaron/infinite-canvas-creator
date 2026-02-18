@@ -396,7 +396,6 @@ export const CanvasToolbar = () => {
                     { icon: Terminal, label: 'CLI Tool', platform: 'cli' as const, type: 'cli' as const, desc: 'A command-line interface tool node.' },
                     { icon: Monitor, label: 'Desktop App', platform: 'desktop' as const, type: 'design' as const, desc: 'A desktop application node (Electron/Tauri).' },
                     { icon: Database, label: 'Database', platform: 'database' as const, type: 'database' as const, desc: 'A database schema designer node.' },
-                    { icon: Code, label: 'Code Block', platform: undefined, type: 'code' as const, desc: 'A standalone code/script node.' },
                   ].map((item) => (
                     <button
                       key={item.label}
