@@ -24,7 +24,7 @@ export const CanvasConnections = () => {
   if (connections.length === 0) return null;
 
   return (
-    <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible' }}>
+    <svg className="absolute pointer-events-none" style={{ left: 0, top: 0, width: 9999, height: 9999, overflow: 'visible' }}>
       <defs>
         <linearGradient id="conn-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="hsl(239 84% 67% / 0.8)" />
