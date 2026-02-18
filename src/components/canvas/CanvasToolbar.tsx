@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Upload, ZoomIn, ZoomOut, Maximize2,
   Search, X, Layers, Moon, Sun, Copy, Trash2,
-  Code, FileCode, Grid3X3, Keyboard, Download, Eye
+  Code, FileCode, Grid3X3, Keyboard, Download, Eye, Package
 } from 'lucide-react';
 import { useCanvasStore } from '@/stores/canvasStore';
 
@@ -106,8 +106,9 @@ export const CanvasToolbar = () => {
   const {
     addNode, zoom, setZoom, setPan, nodes,
     selectedNodeId, duplicateNode, removeNode, clearAll,
-    darkMode, toggleDarkMode,
+    darkMode, toggleDarkMode, setAssemblyPanelOpen, cancelConnecting, connectingFromId,
   } = useCanvasStore();
+  const pickedCount = nodes.filter((n) => n.picked).length;
 
   const [showIdeaInput, setShowIdeaInput] = useState(false);
   const [ideaText, setIdeaText] = useState('');
@@ -413,6 +414,19 @@ export const CanvasToolbar = () => {
           <ToolButton icon={darkMode ? Sun : Moon} label="Theme (D)" onClick={toggleDarkMode} />
           <ToolButton icon={Download} label="Export JSON" onClick={handleExport} />
           <ToolButton icon={Keyboard} label="Shortcuts" onClick={() => setShowShortcuts(true)} />
+
+          {pickedCount > 0 && (
+            <>
+              <Divider />
+              <button
+                onClick={() => setAssemblyPanelOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all"
+              >
+                <Package className="w-3.5 h-3.5" />
+                Assemble ({pickedCount})
+              </button>
+            </>
+          )}
         </div>
       </motion.div>
 

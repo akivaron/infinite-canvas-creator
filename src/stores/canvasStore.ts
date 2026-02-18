@@ -14,6 +14,19 @@ export interface CanvasNode {
   fileName?: string;
   generatedCode?: string;
   connectedTo: string[];
+  picked?: boolean;
+  parentId?: string;
+  /** page role when assembled: header, hero, features, footer, etc. */
+  pageRole?: string;
+}
+
+export interface UIVariation {
+  id: string;
+  label: string;
+  description: string;
+  previewHtml: string;
+  code: string;
+  category: 'header' | 'hero' | 'features' | 'pricing' | 'footer' | 'dashboard' | 'mobile';
 }
 
 interface CanvasState {
@@ -26,6 +39,17 @@ interface CanvasState {
   dragNodeId: string | null;
   dragOffset: { x: number; y: number };
   darkMode: boolean;
+
+  // Preview selection
+  previewPanelOpen: boolean;
+  previewVariations: UIVariation[];
+  previewSourceNodeId: string | null;
+
+  // Assembly
+  assemblyPanelOpen: boolean;
+
+  // Connecting mode
+  connectingFromId: string | null;
 
   addNode: (node: Omit<CanvasNode, 'id' | 'connectedTo'>) => string;
   updateNode: (id: string, updates: Partial<CanvasNode>) => void;
@@ -40,6 +64,15 @@ interface CanvasState {
   endDrag: () => void;
   connectNodes: (fromId: string, toId: string) => void;
   toggleDarkMode: () => void;
+  togglePick: (id: string) => void;
+  getPickedNodes: () => CanvasNode[];
+  openPreviewPanel: (sourceNodeId: string, variations: UIVariation[]) => void;
+  closePreviewPanel: () => void;
+  setAssemblyPanelOpen: (open: boolean) => void;
+  startConnecting: (fromId: string) => void;
+  finishConnecting: (toId: string) => void;
+  cancelConnecting: () => void;
+  disconnectNodes: (fromId: string, toId: string) => void;
 }
 
 let nodeCounter = 0;
@@ -54,6 +87,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   dragNodeId: null,
   dragOffset: { x: 0, y: 0 },
   darkMode: false,
+  previewPanelOpen: false,
+  previewVariations: [],
+  previewSourceNodeId: null,
+  assemblyPanelOpen: false,
+  connectingFromId: null,
 
   addNode: (node) => {
     const id = `node-${++nodeCounter}-${Date.now()}`;
@@ -109,17 +147,55 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       ),
     })),
 
+  disconnectNodes: (fromId, toId) =>
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        n.id === fromId
+          ? { ...n, connectedTo: n.connectedTo.filter((c) => c !== toId) }
+          : n
+      ),
+    })),
+
   duplicateNode: (id) => {
     const { nodes } = get();
     const source = nodes.find((n) => n.id === id);
     if (!source) return;
     const newId = `node-${++nodeCounter}-${Date.now()}`;
     set((state) => ({
-      nodes: [...state.nodes, { ...source, id: newId, x: source.x + 40, y: source.y + 40, connectedTo: [] }],
+      nodes: [...state.nodes, { ...source, id: newId, x: source.x + 40, y: source.y + 40, connectedTo: [], picked: false }],
     }));
   },
 
   clearAll: () => set({ nodes: [], selectedNodeId: null }),
 
   toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
+
+  togglePick: (id) =>
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        n.id === id ? { ...n, picked: !n.picked } : n
+      ),
+    })),
+
+  getPickedNodes: () => get().nodes.filter((n) => n.picked),
+
+  openPreviewPanel: (sourceNodeId, variations) =>
+    set({ previewPanelOpen: true, previewSourceNodeId: sourceNodeId, previewVariations: variations }),
+
+  closePreviewPanel: () =>
+    set({ previewPanelOpen: false, previewVariations: [], previewSourceNodeId: null }),
+
+  setAssemblyPanelOpen: (open) => set({ assemblyPanelOpen: open }),
+
+  startConnecting: (fromId) => set({ connectingFromId: fromId }),
+
+  finishConnecting: (toId) => {
+    const { connectingFromId } = get();
+    if (connectingFromId && connectingFromId !== toId) {
+      get().connectNodes(connectingFromId, toId);
+    }
+    set({ connectingFromId: null });
+  },
+
+  cancelConnecting: () => set({ connectingFromId: null }),
 }));
