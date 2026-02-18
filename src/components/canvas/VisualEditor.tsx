@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MousePointer2, Type, Move, ZoomIn, ZoomOut, Undo2, Redo2, Save, Layers, Link2, Search } from 'lucide-react';
+import { X, MousePointer2, Type, Move, ZoomIn, ZoomOut, Undo2, Redo2, Save, Layers, Link2, Search, Plus } from 'lucide-react';
 import { useCanvasStore, type CanvasNode, type ElementLink } from '@/stores/canvasStore';
+import { PropertiesPanel, type ElementStyles } from './PropertiesPanel';
 
 type Tool = 'select' | 'text' | 'move' | 'link';
 
@@ -17,6 +18,9 @@ export const VisualEditor = ({ node, onClose }: Props) => {
   const [zoom, setZoom] = useState(1);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [selectedElementSelector, setSelectedElementSelector] = useState<string | null>(null);
+  const [selectedStyles, setSelectedStyles] = useState<Partial<ElementStyles> | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedText, setSelectedText] = useState<string | null>(null);
   const [history, setHistory] = useState<string[]>([node.content || node.generatedCode || '']);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [isDirty, setIsDirty] = useState(false);
@@ -25,8 +29,6 @@ export const VisualEditor = ({ node, onClose }: Props) => {
   const [nodeSearch, setNodeSearch] = useState('');
 
   const currentContent = history[historyIndex];
-
-  // Other nodes available for linking (exclude self)
   const linkableNodes = nodes.filter(n => n.id !== node.id);
   const filteredNodes = linkableNodes.filter(n =>
     n.title.toLowerCase().includes(nodeSearch.toLowerCase()) ||
@@ -35,7 +37,6 @@ export const VisualEditor = ({ node, onClose }: Props) => {
 
   // Inject editor styles and interaction scripts into the iframe
   const editorHtml = useCallback((html: string) => {
-    // Build link highlight CSS for existing element links
     const linkHighlightCSS = elementLinks.map(link =>
       `[data-ve-linked="${link.targetNodeId}"] { outline: 2px dashed hsl(150 60% 50% / 0.6) !important; outline-offset: 2px; }`
     ).join('\n');
@@ -59,6 +60,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
           padding: 2px 8px;
           border-radius: 4px;
           pointer-events: none;
+          z-index: 99999;
         }
         .ve-link-mode .ve-selected::after { background: hsl(150 60% 50%); content: '🔗 ' attr(data-ve-tag); }
         ${linkHighlightCSS}
@@ -69,16 +71,39 @@ export const VisualEditor = ({ node, onClose }: Props) => {
         let selected = null;
         let tool = 'select';
 
-        window.addEventListener('message', (e) => {
-          if (e.data.type === 'setTool') {
-            tool = e.data.tool;
-            if (tool === 'link') document.body.classList.add('ve-link-mode');
-            else document.body.classList.remove('ve-link-mode');
-          }
-          if (e.data.type === 'getContent') {
-            window.parent.postMessage({ type: 'content', html: document.documentElement.outerHTML }, '*');
-          }
-        });
+        function getFullStyles(el) {
+          const cs = getComputedStyle(el);
+          return {
+            color: cs.color,
+            fontSize: cs.fontSize,
+            fontWeight: cs.fontWeight,
+            fontStyle: cs.fontStyle,
+            textDecoration: cs.textDecoration,
+            textAlign: cs.textAlign,
+            backgroundColor: cs.backgroundColor,
+            padding: cs.padding,
+            paddingTop: cs.paddingTop,
+            paddingRight: cs.paddingRight,
+            paddingBottom: cs.paddingBottom,
+            paddingLeft: cs.paddingLeft,
+            margin: cs.margin,
+            marginTop: cs.marginTop,
+            marginRight: cs.marginRight,
+            marginBottom: cs.marginBottom,
+            marginLeft: cs.marginLeft,
+            borderRadius: cs.borderRadius,
+            borderWidth: cs.borderWidth,
+            borderColor: cs.borderColor,
+            borderStyle: cs.borderStyle,
+            width: cs.width,
+            height: cs.height,
+            display: cs.display,
+            opacity: cs.opacity,
+            letterSpacing: cs.letterSpacing,
+            lineHeight: cs.lineHeight,
+            textTransform: cs.textTransform,
+          };
+        }
 
         function buildSelector(el) {
           if (el.id) return '#' + el.id;
@@ -90,6 +115,68 @@ export const VisualEditor = ({ node, onClose }: Props) => {
           const idx = siblings.indexOf(el) + 1;
           return buildSelector(parent) + ' > ' + tag + ':nth-child(' + idx + ')';
         }
+
+        window.addEventListener('message', (e) => {
+          if (e.data.type === 'setTool') {
+            tool = e.data.tool;
+            if (tool === 'link') document.body.classList.add('ve-link-mode');
+            else document.body.classList.remove('ve-link-mode');
+          }
+          if (e.data.type === 'getContent') {
+            // Clean up editor classes before returning
+            if (selected) { selected.classList.remove('ve-selected'); selected.removeAttribute('data-ve-tag'); }
+            document.querySelectorAll('.ve-hover').forEach(el => el.classList.remove('ve-hover'));
+            window.parent.postMessage({ type: 'content', html: document.documentElement.outerHTML }, '*');
+          }
+          if (e.data.type === 'setStyle') {
+            if (selected) {
+              selected.style[e.data.prop] = e.data.value;
+              window.parent.postMessage({ type: 'stylesUpdated', styles: getFullStyles(selected) }, '*');
+              window.parent.postMessage({ type: 'contentChanged' }, '*');
+            }
+          }
+          if (e.data.type === 'setText') {
+            if (selected) {
+              selected.textContent = e.data.value;
+              window.parent.postMessage({ type: 'contentChanged' }, '*');
+            }
+          }
+          if (e.data.type === 'deleteElement') {
+            if (selected && selected !== document.body && selected !== document.documentElement) {
+              selected.remove();
+              selected = null;
+              window.parent.postMessage({ type: 'elementDeselected' }, '*');
+              window.parent.postMessage({ type: 'contentChanged' }, '*');
+            }
+          }
+          if (e.data.type === 'duplicateElement') {
+            if (selected && selected.parentElement) {
+              const clone = selected.cloneNode(true);
+              clone.classList.remove('ve-selected');
+              clone.removeAttribute('data-ve-tag');
+              selected.parentElement.insertBefore(clone, selected.nextSibling);
+              window.parent.postMessage({ type: 'contentChanged' }, '*');
+            }
+          }
+          if (e.data.type === 'insertElement') {
+            const tag = e.data.tag;
+            const el = document.createElement(tag);
+            const defaults = {
+              p: () => { el.textContent = 'New text paragraph'; el.style.cssText = 'margin:16px 0; font-size:16px;'; },
+              h2: () => { el.textContent = 'New Heading'; el.style.cssText = 'margin:16px 0; font-size:24px; font-weight:700;'; },
+              button: () => { el.textContent = 'Button'; el.style.cssText = 'padding:12px 24px; background:#6366f1; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer;'; },
+              a: () => { el.textContent = 'Link text'; el.href = '#'; el.style.cssText = 'color:#6366f1; text-decoration:underline;'; },
+              img: () => { el.src = 'https://placehold.co/400x200/1a1a2e/fff?text=Image'; el.alt = 'Placeholder'; el.style.cssText = 'max-width:100%; border-radius:8px; margin:16px 0;'; },
+              div: () => { el.textContent = 'New container'; el.style.cssText = 'padding:24px; margin:16px 0; background:rgba(99,102,241,0.08); border-radius:12px;'; },
+              hr: () => { el.style.cssText = 'border:none; border-top:1px solid #e2e8f0; margin:24px 0;'; },
+            };
+            (defaults[tag] || defaults.div)();
+            const target = selected && selected !== document.body ? selected.parentElement || document.body : document.body;
+            if (selected && selected !== document.body) target.insertBefore(el, selected.nextSibling);
+            else target.appendChild(el);
+            window.parent.postMessage({ type: 'contentChanged' }, '*');
+          }
+        });
 
         document.addEventListener('mouseover', (e) => {
           if (tool !== 'select' && tool !== 'text' && tool !== 'link') return;
@@ -127,15 +214,9 @@ export const VisualEditor = ({ node, onClose }: Props) => {
           window.parent.postMessage({
             type: 'elementSelected',
             tag: el.tagName.toLowerCase(),
-            text: el.textContent?.slice(0, 100),
+            text: el.textContent?.slice(0, 200),
             selector: selector,
-            isLinkable: (el.tagName === 'A' || el.tagName === 'BUTTON' || el.getAttribute('role') === 'button' || el.onclick),
-            styles: {
-              color: getComputedStyle(el).color,
-              fontSize: getComputedStyle(el).fontSize,
-              fontWeight: getComputedStyle(el).fontWeight,
-              backgroundColor: getComputedStyle(el).backgroundColor,
-            }
+            styles: getFullStyles(el),
           }, '*');
         }, true);
 
@@ -152,9 +233,22 @@ export const VisualEditor = ({ node, onClose }: Props) => {
       if (e.data.type === 'elementSelected') {
         setSelectedElement(`<${e.data.tag}> ${e.data.text || ''}`);
         setSelectedElementSelector(e.data.selector);
+        setSelectedTag(e.data.tag);
+        setSelectedText(e.data.text || null);
+        setSelectedStyles(e.data.styles);
         if (activeTool === 'link') {
           setShowNodePicker(true);
         }
+      }
+      if (e.data.type === 'elementDeselected') {
+        setSelectedElement(null);
+        setSelectedElementSelector(null);
+        setSelectedTag(null);
+        setSelectedText(null);
+        setSelectedStyles(null);
+      }
+      if (e.data.type === 'stylesUpdated') {
+        setSelectedStyles(e.data.styles);
       }
       if (e.data.type === 'contentChanged') {
         setIsDirty(true);
@@ -169,35 +263,43 @@ export const VisualEditor = ({ node, onClose }: Props) => {
     return () => window.removeEventListener('message', handler);
   }, [historyIndex, activeTool]);
 
-  // Send tool changes to iframe
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage({ type: 'setTool', tool: activeTool }, '*');
   }, [activeTool]);
 
+  const handleStyleChange = useCallback((prop: string, value: string) => {
+    iframeRef.current?.contentWindow?.postMessage({ type: 'setStyle', prop, value }, '*');
+  }, []);
+
+  const handleAction = useCallback((action: string, payload?: string) => {
+    if (action === 'setText') {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'setText', value: payload }, '*');
+      setSelectedText(payload || null);
+    } else if (action === 'delete') {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'deleteElement' }, '*');
+    } else if (action === 'duplicate') {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'duplicateElement' }, '*');
+    } else if (action === 'insert') {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'insertElement', tag: payload }, '*');
+    }
+  }, []);
+
   const handleLinkToNode = useCallback((targetNodeId: string) => {
     if (!selectedElementSelector) return;
-    const targetNode = nodes.find(n => n.id === targetNodeId);
     const newLink: ElementLink = {
       selector: selectedElementSelector,
       label: selectedElement || 'Element',
       targetNodeId,
     };
     setElementLinks(prev => {
-      // Replace if same selector already linked
       const filtered = prev.filter(l => l.selector !== selectedElementSelector);
       return [...filtered, newLink];
     });
     setIsDirty(true);
     setShowNodePicker(false);
     setNodeSearch('');
-    // Also auto-connect the nodes
     useCanvasStore.getState().connectNodes(node.id, targetNodeId);
-  }, [selectedElementSelector, selectedElement, node.id, nodes]);
-
-  const handleRemoveLink = useCallback((selector: string) => {
-    setElementLinks(prev => prev.filter(l => l.selector !== selector));
-    setIsDirty(true);
-  }, []);
+  }, [selectedElementSelector, selectedElement, node.id]);
 
   const handleSave = useCallback(() => {
     iframeRef.current?.contentWindow?.postMessage({ type: 'getContent' }, '*');
@@ -230,91 +332,86 @@ export const VisualEditor = ({ node, onClose }: Props) => {
     { id: 'move', icon: Move, label: 'Move' },
   ];
 
-  const typeIcons: Record<string, string> = {
-    idea: '✦',
-    design: '◆',
-    code: '⟨/⟩',
-    import: '↑',
-  };
+  const typeIcons: Record<string, string> = { idea: '✦', design: '◆', code: '⟨/⟩', import: '↑' };
 
   return (
     <motion.div
-      className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-xl flex flex-col"
+      className="fixed inset-0 z-[100] bg-background flex flex-col"
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.2 }}
     >
       {/* Top toolbar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-card/80 backdrop-blur">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/90 backdrop-blur shrink-0">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-primary" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Visual Editor</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Builder</span>
           </div>
-          <div className="h-5 w-px bg-border" />
-          <span className="text-xs font-bold text-muted-foreground truncate max-w-[200px]">{node.title}</span>
+          <div className="h-4 w-px bg-border" />
+          <span className="text-[10px] font-bold text-muted-foreground truncate max-w-[160px]">{node.title}</span>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           {tools.map((t) => (
             <button
               key={t.id}
               onClick={() => setActiveTool(t.id)}
-              className={`group relative flex items-center justify-center w-9 h-9 rounded-xl transition-all ${
+              className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
                 activeTool === t.id
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
               }`}
               title={t.label}
             >
-              <t.icon className="w-4 h-4" />
+              <t.icon className="w-3.5 h-3.5" />
             </button>
           ))}
 
-          <div className="h-5 w-px bg-border mx-2" />
+          <div className="h-4 w-px bg-border mx-1.5" />
 
-          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all">
-            <ZoomOut className="w-4 h-4" />
+          <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all">
+            <ZoomOut className="w-3.5 h-3.5" />
           </button>
-          <span className="text-[10px] font-black text-muted-foreground w-12 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all">
-            <ZoomIn className="w-4 h-4" />
-          </button>
-
-          <div className="h-5 w-px bg-border mx-2" />
-
-          <button onClick={handleUndo} disabled={historyIndex === 0} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all disabled:opacity-30">
-            <Undo2 className="w-4 h-4" />
-          </button>
-          <button onClick={handleRedo} disabled={historyIndex >= history.length - 1} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all disabled:opacity-30">
-            <Redo2 className="w-4 h-4" />
+          <span className="text-[9px] font-black text-muted-foreground w-10 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all">
+            <ZoomIn className="w-3.5 h-3.5" />
           </button>
 
-          <div className="h-5 w-px bg-border mx-2" />
+          <div className="h-4 w-px bg-border mx-1.5" />
+
+          <button onClick={handleUndo} disabled={historyIndex === 0} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all disabled:opacity-30">
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={handleRedo} disabled={historyIndex >= history.length - 1} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all disabled:opacity-30">
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="h-4 w-px bg-border mx-1.5" />
 
           <button
             onClick={handleSave}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
               isDirty
                 ? 'bg-primary text-primary-foreground hover:opacity-90'
                 : 'border border-border text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Save className="w-3.5 h-3.5" /> Save
+            <Save className="w-3 h-3" /> Save
           </button>
-          <button onClick={onClose} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all ml-1">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all ml-1">
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Main area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Canvas area */}
-        <div className="flex-1 overflow-auto bg-secondary/30 flex items-center justify-center p-8">
+      {/* Main area: canvas + properties panel */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Canvas */}
+        <div className="flex-1 overflow-auto bg-secondary/20 flex items-center justify-center">
           <div
-            className="bg-card rounded-2xl border border-border shadow-2xl overflow-hidden transition-transform"
+            className="bg-white rounded-xl shadow-2xl overflow-hidden transition-transform"
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: 'center center',
@@ -332,59 +429,19 @@ export const VisualEditor = ({ node, onClose }: Props) => {
           </div>
         </div>
 
-        {/* Right panel: Element Links */}
-        <AnimatePresence>
-          {(activeTool === 'link' || elementLinks.length > 0) && (
-            <motion.div
-              className="w-72 border-l border-border bg-card/80 backdrop-blur flex flex-col"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 288, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div className="px-4 py-3 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <Link2 className="w-4 h-4 text-primary" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Element Links</span>
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {activeTool === 'link' ? 'Click an element to link it to a node' : 'Linked elements in this view'}
-                </p>
-              </div>
-
-              <div className="flex-1 overflow-auto p-3 space-y-2">
-                {elementLinks.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Link2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-[10px] font-bold">No links yet</p>
-                    <p className="text-[9px] mt-1">Select the Link tool and click elements</p>
-                  </div>
-                )}
-                {elementLinks.map((link) => {
-                  const targetNode = nodes.find(n => n.id === link.targetNodeId);
-                  return (
-                    <div key={link.selector} className="p-3 rounded-xl bg-secondary/50 border border-border space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-primary truncate max-w-[160px]">{link.label}</span>
-                        <button onClick={() => handleRemoveLink(link.selector)} className="p-1 rounded-lg text-muted-foreground hover:text-destructive transition-colors">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px]">{typeIcons[targetNode?.type || 'design']}</span>
-                        <span className="text-[10px] font-bold text-foreground truncate">{targetNode?.title || 'Unknown'}</span>
-                      </div>
-                      <div className="text-[8px] font-mono text-muted-foreground truncate">{link.selector}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Right panel: Properties */}
+        <div className="w-72 border-l border-border bg-card/90 backdrop-blur flex flex-col shrink-0 overflow-hidden">
+          <PropertiesPanel
+            selectedTag={selectedTag}
+            selectedText={selectedText}
+            styles={selectedStyles}
+            onStyleChange={handleStyleChange}
+            onAction={handleAction}
+          />
+        </div>
       </div>
 
-      {/* Node picker modal */}
+      {/* Node picker modal for Link tool */}
       <AnimatePresence>
         {showNodePicker && (
           <motion.div
@@ -407,7 +464,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
                   <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Link to Node</span>
                 </div>
                 <p className="text-[10px] text-muted-foreground mb-3">
-                  Select a node to link <span className="text-primary font-bold">{selectedElement}</span> to:
+                  Link <span className="text-primary font-bold">{selectedElement}</span> to:
                 </p>
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -423,7 +480,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
               </div>
               <div className="flex-1 overflow-auto p-2 space-y-1">
                 {filteredNodes.length === 0 && (
-                  <p className="text-center py-6 text-[10px] text-muted-foreground">No matching nodes found</p>
+                  <p className="text-center py-6 text-[10px] text-muted-foreground">No matching nodes</p>
                 )}
                 {filteredNodes.map((n) => {
                   const existingLink = elementLinks.find(l => l.selector === selectedElementSelector && l.targetNodeId === n.id);
@@ -439,7 +496,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-bold text-foreground truncate">{n.title}</div>
                         <div className="text-[9px] text-muted-foreground uppercase font-black tracking-widest">
-                          {n.type}{n.pageRole ? ` • ${n.pageRole}` : ''}{n.platform ? ` • ${n.platform}` : ''}
+                          {n.type}{n.pageRole ? ` • ${n.pageRole}` : ''}
                         </div>
                       </div>
                       {existingLink && <span className="text-[8px] font-black text-primary uppercase">Linked</span>}
@@ -461,25 +518,25 @@ export const VisualEditor = ({ node, onClose }: Props) => {
       </AnimatePresence>
 
       {/* Bottom status bar */}
-      <div className="flex items-center justify-between px-6 py-2 border-t border-border bg-card/80 backdrop-blur text-[10px] font-bold text-muted-foreground">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between px-4 py-1.5 border-t border-border bg-card/90 backdrop-blur text-[9px] font-bold text-muted-foreground shrink-0">
+        <div className="flex items-center gap-3">
           <span>
-            {activeTool === 'select' ? 'Click to select elements' :
-             activeTool === 'text' ? 'Click element to edit text' :
-             activeTool === 'link' ? 'Click element to link to a node' :
-             'Drag to reposition'}
+            {activeTool === 'select' ? 'Click to select' :
+             activeTool === 'text' ? 'Click to edit text' :
+             activeTool === 'link' ? 'Click to link' :
+             'Drag to move'}
           </span>
           {selectedElement && (
             <>
               <div className="h-3 w-px bg-border" />
-              <span className="text-primary truncate max-w-[300px]">{selectedElement}</span>
+              <span className="text-primary truncate max-w-[200px]">{selectedElement}</span>
             </>
           )}
         </div>
         <div className="flex items-center gap-3">
           {elementLinks.length > 0 && <span className="text-primary">{elementLinks.length} link{elementLinks.length > 1 ? 's' : ''}</span>}
-          <span>{node.platform === 'mobile' ? '390 × 844' : '1280 × 800'}</span>
-          {isDirty && <span className="text-amber-500">• Unsaved changes</span>}
+          <span>{node.platform === 'mobile' ? '390×844' : '1280×800'}</span>
+          {isDirty && <span className="text-amber-500">• Unsaved</span>}
         </div>
       </div>
     </motion.div>
