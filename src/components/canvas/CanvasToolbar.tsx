@@ -27,7 +27,7 @@ const Minimap = () => {
 
   return (
     <motion.div
-      className="absolute bottom-20 right-6 z-30 rounded-2xl bg-card/90 backdrop-blur border border-border p-2 overflow-hidden cursor-pointer"
+      className="fixed bottom-28 right-6 z-30 rounded-2xl bg-card/90 backdrop-blur border border-border p-2 overflow-hidden cursor-pointer"
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       onClick={(e) => {
@@ -90,6 +90,7 @@ const ShortcutsModal = ({ onClose }: { onClose: () => void }) => (
           ['Delete / Backspace', 'Delete selected'],
           ['Ctrl/⌘ + D', 'Duplicate selected'],
           ['Escape', 'Deselect'],
+          ['E', 'Edit selected node'],
         ].map(([key, desc]) => (
           <div key={key} className="flex items-center justify-between py-2 border-b border-border last:border-0">
             <span className="brand-description">{desc}</span>
@@ -134,12 +135,12 @@ export const CanvasToolbar = () => {
       if (e.key === 'd' && !e.ctrlKey && !e.metaKey) { toggleDarkMode(); }
       if (e.key === 'd' && (e.ctrlKey || e.metaKey) && selectedNodeId) { e.preventDefault(); duplicateNode(selectedNodeId); }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) { removeNode(selectedNodeId); }
-      if (e.key === 'Escape') { useCanvasStore.getState().selectNode(null); setShowSearch(false); setShowIdeaInput(false); }
+      if (e.key === 'Escape') { useCanvasStore.getState().selectNode(null); setShowSearch(false); setShowIdeaInput(false); cancelConnecting(); }
       if (e.key === '/' || (e.key === 'f' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); setShowSearch(true); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selectedNodeId, duplicateNode, removeNode, toggleDarkMode]);
+  }, [selectedNodeId, duplicateNode, removeNode, toggleDarkMode, cancelConnecting]);
 
   const handleAddIdea = useCallback(() => {
     if (!ideaText.trim()) return;
@@ -224,15 +225,17 @@ export const CanvasToolbar = () => {
     ? nodes.filter((n) => n.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : [];
 
-  const ToolButton = ({ icon: I, label, onClick, active, accent }: {
-    icon: typeof Sparkles; label: string; onClick: () => void; active?: boolean; accent?: boolean;
+  const ToolButton = ({ icon: I, label, onClick, active, accent, disabled }: {
+    icon: typeof Sparkles; label: string; onClick: () => void; active?: boolean; accent?: boolean; disabled?: boolean;
   }) => (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all
         ${accent ? 'bg-primary text-primary-foreground hover:opacity-90' : ''}
         ${active ? 'bg-secondary text-foreground' : ''}
         ${!accent && !active ? 'text-muted-foreground hover:text-foreground hover:bg-secondary/80' : ''}
+        ${disabled ? 'opacity-30 pointer-events-none' : ''}
       `}
       title={label}
     >
@@ -254,7 +257,7 @@ export const CanvasToolbar = () => {
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.1 }}
       >
-        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-card border border-border">
+        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-card/90 backdrop-blur-xl border border-border shadow-sm">
           <Layers className="w-5 h-5 text-primary" />
           <span className="text-[10px] font-black uppercase tracking-widest text-foreground">
             Infinite Canvas
@@ -268,7 +271,7 @@ export const CanvasToolbar = () => {
         <div className="relative">
           <button
             onClick={() => setShowSearch(!showSearch)}
-            className="p-3 rounded-2xl bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all"
+            className="p-3 rounded-2xl bg-card/90 backdrop-blur-xl border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all shadow-sm"
           >
             <Search className="w-5 h-5" />
           </button>
@@ -314,12 +317,12 @@ export const CanvasToolbar = () => {
 
       {/* ─── Bottom center: main action dock ─── */}
       <motion.div
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20"
+        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20"
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.15 }}
       >
-        <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-card/90 backdrop-blur-xl border border-border shadow-lg">
+        <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-card/90 backdrop-blur-xl border border-border shadow-2xl shadow-primary/5">
           {/* Idea input or button */}
           <AnimatePresence mode="wait">
             {showIdeaInput ? (
@@ -365,7 +368,7 @@ export const CanvasToolbar = () => {
             <AnimatePresence>
               {showNodeTypes && (
                 <motion.div
-                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 rounded-2xl bg-card border border-border p-2"
+                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 rounded-2xl bg-card border border-border p-2 shadow-xl"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 8 }}
@@ -392,11 +395,13 @@ export const CanvasToolbar = () => {
             icon={Copy}
             label="Duplicate (⌘D)"
             onClick={() => selectedNodeId && duplicateNode(selectedNodeId)}
+            disabled={!selectedNodeId}
           />
           <ToolButton
             icon={Trash2}
             label="Delete (Del)"
             onClick={() => selectedNodeId && removeNode(selectedNodeId)}
+            disabled={!selectedNodeId}
           />
 
           <Divider />
@@ -441,7 +446,7 @@ export const CanvasToolbar = () => {
       {/* Clear all */}
       {nodes.length > 0 && (
         <motion.button
-          className="fixed top-6 right-6 z-20 px-4 py-2.5 rounded-2xl bg-card border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 text-[10px] font-black uppercase tracking-widest transition-all"
+          className="fixed top-6 right-6 z-20 px-4 py-2.5 rounded-2xl bg-card/90 backdrop-blur-xl border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           onClick={clearAll}

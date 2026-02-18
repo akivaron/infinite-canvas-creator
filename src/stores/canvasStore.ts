@@ -18,6 +18,8 @@ export interface CanvasNode {
   parentId?: string;
   /** page role when assembled: header, hero, features, footer, etc. */
   pageRole?: string;
+  /** color tag for visual grouping */
+  tag?: string;
 }
 
 export interface UIVariation {
