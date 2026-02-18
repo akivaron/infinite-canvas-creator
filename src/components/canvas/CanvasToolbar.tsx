@@ -117,7 +117,7 @@ export const CanvasToolbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showMinimap, setShowMinimap] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showNodeTypes, setShowNodeTypes] = useState(false);
+  const [showNodeTypes, setShowNodeTypes] = useState(false); // kept for state but menu removed
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Apply dark mode to html
@@ -328,28 +328,29 @@ export const CanvasToolbar = () => {
             {showIdeaInput ? (
               <motion.div
                 key="input"
-                className="flex items-center gap-2"
+                className="flex items-start gap-2"
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 'auto', opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
               >
-                <input
+                <textarea
                   autoFocus
                   value={ideaText}
                   onChange={(e) => setIdeaText(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddIdea();
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddIdea(); }
                     if (e.key === 'Escape') { setShowIdeaInput(false); setIdeaText(''); }
                   }}
-                  placeholder="Describe your idea..."
-                  className="brand-input w-72 !py-2 !rounded-xl"
+                  placeholder="Describe your idea... (Shift+Enter for new line)"
+                  className="brand-input w-[420px] !py-2.5 !rounded-xl resize-none"
+                  rows={3}
                 />
-                <button onClick={handleAddIdea} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all">
+                <button onClick={handleAddIdea} className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all whitespace-nowrap">
                   Create
                 </button>
                 <button
                   onClick={() => { setShowIdeaInput(false); setIdeaText(''); }}
-                  className="p-2 rounded-xl text-muted-foreground hover:text-foreground transition-colors"
+                  className="p-2.5 rounded-xl text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -361,30 +362,6 @@ export const CanvasToolbar = () => {
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* Node types dropdown */}
-          <div className="relative">
-            <ToolButton icon={Grid3X3} label="Node Types" onClick={() => setShowNodeTypes(!showNodeTypes)} active={showNodeTypes} />
-            <AnimatePresence>
-              {showNodeTypes && (
-                <motion.div
-                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 rounded-2xl bg-card border border-border p-2 shadow-xl"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                >
-                  <button onClick={() => handleAddTypedNode('design')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-secondary transition-colors">
-                    <Code className="w-4 h-4 text-emerald-500" />
-                    <span className="text-xs font-bold text-foreground">Design Node</span>
-                  </button>
-                  <button onClick={() => handleAddTypedNode('code')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-secondary transition-colors">
-                    <FileCode className="w-4 h-4 text-amber-500" />
-                    <span className="text-xs font-bold text-foreground">Code Node</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
 
           <ToolButton icon={Upload} label="Import Files" onClick={() => fileInputRef.current?.click()} />
 

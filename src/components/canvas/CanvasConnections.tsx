@@ -5,10 +5,16 @@ export const CanvasConnections = () => {
 
   const connections: { x1: number; y1: number; x2: number; y2: number; key: string }[] = [];
 
+  // Check if any nodes are picked
+  const hasPickedNodes = nodes.some((n) => n.picked);
+
   nodes.forEach((node) => {
     node.connectedTo.forEach((targetId) => {
       const target = nodes.find((n) => n.id === targetId);
       if (!target) return;
+
+      // If any nodes are picked, only show lines to/from picked nodes
+      if (hasPickedNodes && !node.picked && !target.picked) return;
 
       // From right edge center of source
       const x1 = node.x + node.width;
