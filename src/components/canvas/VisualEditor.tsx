@@ -1,11 +1,18 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MousePointer2, Type, Move, ZoomIn, ZoomOut, Undo2, Redo2, Save, Layers, Link2, Search, Plus, PanelLeft } from 'lucide-react';
+import { X, MousePointer2, Type, Move, ZoomIn, ZoomOut, Undo2, Redo2, Save, Layers, Link2, Search, Plus, PanelLeft, Monitor, Tablet, Smartphone } from 'lucide-react';
 import { useCanvasStore, type CanvasNode, type ElementLink } from '@/stores/canvasStore';
 import { PropertiesPanel, type ElementStyles } from './PropertiesPanel';
 import { ElementsTemplatesPanel } from './ElementsTemplatesPanel';
 
 type Tool = 'select' | 'text' | 'move' | 'link';
+
+type ViewportPreset = 'desktop' | 'tablet' | 'mobile';
+const viewportPresets: Record<ViewportPreset, { width: number; height: number; label: string; icon: typeof Monitor }> = {
+  desktop: { width: 1280, height: 800, label: 'Desktop', icon: Monitor },
+  tablet: { width: 768, height: 1024, label: 'Tablet', icon: Tablet },
+  mobile: { width: 390, height: 844, label: 'Mobile', icon: Smartphone },
+};
 
 interface Props {
   node: CanvasNode;
@@ -29,6 +36,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
   const [showNodePicker, setShowNodePicker] = useState(false);
   const [nodeSearch, setNodeSearch] = useState('');
   const [showLeftPanel, setShowLeftPanel] = useState(true);
+  const [viewport, setViewport] = useState<ViewportPreset>(node.platform === 'mobile' ? 'mobile' : 'desktop');
 
   const currentContent = history[historyIndex];
   const linkableNodes = nodes.filter(n => n.id !== node.id);
@@ -571,6 +579,24 @@ export const VisualEditor = ({ node, onClose }: Props) => {
 
           <div className="h-4 w-px bg-border mx-1.5" />
 
+          {/* Responsive viewport switcher */}
+          {Object.entries(viewportPresets).map(([key, preset]) => (
+            <button
+              key={key}
+              onClick={() => setViewport(key as ViewportPreset)}
+              className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
+                viewport === key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
+              }`}
+              title={`${preset.label} (${preset.width}×${preset.height})`}
+            >
+              <preset.icon className="w-3.5 h-3.5" />
+            </button>
+          ))}
+
+          <div className="h-4 w-px bg-border mx-1.5" />
+
           <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-all">
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
@@ -633,12 +659,13 @@ export const VisualEditor = ({ node, onClose }: Props) => {
           }}
         >
           <div
-            className="bg-white rounded-xl shadow-2xl overflow-hidden transition-transform"
+            className={`bg-white rounded-xl shadow-2xl overflow-hidden transition-all duration-300 ${viewport !== 'desktop' ? 'border-[8px] border-[hsl(var(--border))]' : ''}`}
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: 'center center',
-              width: node.platform === 'mobile' ? 390 : 1280,
-              height: node.platform === 'mobile' ? 844 : 800,
+              width: viewportPresets[viewport].width,
+              height: viewportPresets[viewport].height,
+              borderRadius: viewport === 'mobile' ? 32 : viewport === 'tablet' ? 20 : 12,
             }}
           >
             <iframe
@@ -759,7 +786,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
         </div>
         <div className="flex items-center gap-3">
           {elementLinks.length > 0 && <span className="text-primary">{elementLinks.length} link{elementLinks.length > 1 ? 's' : ''}</span>}
-          <span>{node.platform === 'mobile' ? '390×844' : '1280×800'}</span>
+          <span>{viewportPresets[viewport].width}×{viewportPresets[viewport].height} · {viewportPresets[viewport].label}</span>
           {isDirty && <span className="text-amber-500">• Unsaved</span>}
         </div>
       </div>
