@@ -97,15 +97,19 @@ export const CanvasNodeCard = ({ node }: Props) => {
         updateNode(node.id, { status: 'ready' });
         const variations = generateFullPageVariations(node.title, node.description, platform);
         
+        const count = variations.length;
+        const totalHeight = count * 340 + (count - 1) * 40;
+        const startY = node.y + (node.height || 150) / 2 - totalHeight / 2;
+
         variations.forEach((variation, idx) => {
           const newId = addNode({
             type: 'design',
             title: variation.label,
             description: variation.description,
-            x: node.x + node.width + 120,
-            y: node.y + idx * 380,
+            x: node.x + node.width + 200,
+            y: startY + idx * 380,
             width: 420,
-            height: 360,
+            height: 340,
             status: 'ready',
             generatedCode: variation.code,
             content: variation.previewHtml,

@@ -27,14 +27,22 @@ export const CanvasConnections = () => {
     <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible' }}>
       <defs>
         <linearGradient id="conn-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="hsl(239 84% 67% / 0.7)" />
-          <stop offset="100%" stopColor="hsl(160 84% 50% / 0.5)" />
+          <stop offset="0%" stopColor="hsl(239 84% 67% / 0.8)" />
+          <stop offset="50%" stopColor="hsl(270 80% 65% / 0.6)" />
+          <stop offset="100%" stopColor="hsl(160 84% 50% / 0.7)" />
         </linearGradient>
-        <marker id="arrowhead" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto">
-          <path d="M 0 0 L 12 4 L 0 8 L 3 4 Z" fill="hsl(239 84% 67% / 0.6)" />
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <path d="M 0 0 L 10 3.5 L 0 7 L 2.5 3.5 Z" fill="hsl(160 84% 50% / 0.8)" />
         </marker>
         <filter id="conn-glow">
-          <feGaussianBlur stdDeviation="4" result="glow" />
+          <feGaussianBlur stdDeviation="6" result="glow" />
+          <feMerge>
+            <feMergeNode in="glow" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="dot-glow">
+          <feGaussianBlur stdDeviation="3" result="glow" />
           <feMerge>
             <feMergeNode in="glow" />
             <feMergeNode in="SourceGraphic" />
@@ -43,25 +51,43 @@ export const CanvasConnections = () => {
       </defs>
       {connections.map((c) => {
         const dx = c.x2 - c.x1;
-        const cp = Math.max(80, Math.abs(dx) * 0.4);
+        const dy = c.y2 - c.y1;
+        const cp = Math.max(100, Math.abs(dx) * 0.45);
         const path = `M ${c.x1} ${c.y1} C ${c.x1 + cp} ${c.y1}, ${c.x2 - cp} ${c.y2}, ${c.x2} ${c.y2}`;
-        const pathLen = Math.sqrt(dx * dx + (c.y2 - c.y1) ** 2) * 1.4; // approx
+        const pathLen = Math.sqrt(dx * dx + dy * dy) * 1.4;
+        const dur = `${Math.max(1.8, pathLen / 180)}s`;
         return (
           <g key={c.key}>
-            {/* Soft glow */}
-            <path d={path} fill="none" stroke="hsl(239 84% 67% / 0.08)" strokeWidth={10} filter="url(#conn-glow)" />
+            {/* Outer glow */}
+            <path d={path} fill="none" stroke="hsl(239 84% 67% / 0.06)" strokeWidth={16} filter="url(#conn-glow)" />
+            {/* Mid glow */}
+            <path d={path} fill="none" stroke="hsl(239 84% 67% / 0.12)" strokeWidth={6} />
             {/* Main bezier */}
-            <path d={path} fill="none" stroke="url(#conn-gradient)" strokeWidth={2} markerEnd="url(#arrowhead)" />
-            {/* Animated dot along path */}
-            <circle r="3.5" fill="hsl(239 84% 67% / 0.9)">
-              <animateMotion dur={`${Math.max(2, pathLen / 200)}s`} repeatCount="indefinite" path={path} />
+            <path d={path} fill="none" stroke="url(#conn-gradient)" strokeWidth={2.5} markerEnd="url(#arrowhead)" strokeLinecap="round" />
+
+            {/* Animated bright dot */}
+            <circle r="4" fill="hsl(239 84% 67%)" filter="url(#dot-glow)">
+              <animateMotion dur={dur} repeatCount="indefinite" path={path} />
             </circle>
-            <circle r="6" fill="hsl(239 84% 67% / 0.15)">
-              <animateMotion dur={`${Math.max(2, pathLen / 200)}s`} repeatCount="indefinite" path={path} />
+            {/* Animated halo around dot */}
+            <circle r="8" fill="hsl(239 84% 67% / 0.12)">
+              <animateMotion dur={dur} repeatCount="indefinite" path={path} />
             </circle>
-            {/* Source & target connection dots */}
-            <circle cx={c.x1} cy={c.y1} r="4" fill="hsl(var(--canvas-node-bg))" stroke="hsl(239 84% 67% / 0.5)" strokeWidth={2} />
-            <circle cx={c.x2} cy={c.y2} r="4" fill="hsl(var(--canvas-node-bg))" stroke="hsl(160 84% 50% / 0.5)" strokeWidth={2} />
+            {/* Second trailing dot (offset) */}
+            <circle r="2.5" fill="hsl(270 80% 65% / 0.7)">
+              <animateMotion dur={dur} repeatCount="indefinite" path={path} begin={`-${parseFloat(dur) * 0.5}s`} />
+            </circle>
+
+            {/* Source port */}
+            <circle cx={c.x1} cy={c.y1} r="5" fill="hsl(239 84% 67% / 0.15)" stroke="hsl(239 84% 67% / 0.6)" strokeWidth={2}>
+              <animate attributeName="r" values="5;6;5" dur="2s" repeatCount="indefinite" />
+            </circle>
+            <circle cx={c.x1} cy={c.y1} r="2" fill="hsl(239 84% 67% / 0.9)" />
+            {/* Target port */}
+            <circle cx={c.x2} cy={c.y2} r="5" fill="hsl(160 84% 50% / 0.15)" stroke="hsl(160 84% 50% / 0.6)" strokeWidth={2}>
+              <animate attributeName="r" values="5;6;5" dur="2s" repeatCount="indefinite" />
+            </circle>
+            <circle cx={c.x2} cy={c.y2} r="2" fill="hsl(160 84% 50% / 0.9)" />
           </g>
         );
       })}
