@@ -643,12 +643,12 @@ function sectionHtml(content: string): string {
   ].join('\n');
 }
 
-export function generateSubSections(title: string, platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database'): SubSection[] {
+export function generateSubSections(title: string, platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database', prompt?: string): SubSection[] {
   const sections: SubSection[] = [
     {
       id: `sub-${++variationCounter}`,
-      label: 'Header / Navbar',
-      description: 'Navigation bar with logo, links, and CTA button.',
+      label: prompt ? `Prompted ${prompt.slice(0, 10)}...` : 'Header / Navbar',
+      description: prompt ? `Generated based on: ${prompt}` : 'Navigation bar with logo, links, and CTA button.',
       category: 'header',
       previewHtml: sectionHtml(
         '<nav style="padding:16px 32px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:12px;">' +

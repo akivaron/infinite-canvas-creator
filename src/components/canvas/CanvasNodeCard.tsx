@@ -79,6 +79,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [showCodeEditor, setShowCodeEditor] = useState(false);
   const [showApiLangPicker, setShowApiLangPicker] = useState(false);
+  const [subUiPrompt, setSubUiPrompt] = useState('');
   const titleInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -127,7 +128,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         const padding = 80;
         
         const currentNodesState = useCanvasStore.getState().nodes;
-        let currentNodes = [...currentNodesState];
+        const currentNodes = [...currentNodesState];
 
         variations.forEach((variation) => {
           const { x, y } = findFreePosition(
@@ -217,14 +218,14 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
       setTimeout(() => {
         updateNode(node.id, { status: 'ready' });
-        const subSections = generateSubSections(node.title, node.platform || 'web');
+        const subSections = generateSubSections(node.title, node.platform || 'web', subUiPrompt);
 
         const nodeWidth = 380;
         const nodeHeight = 260;
         const padding = 60;
 
         const currentNodesState = useCanvasStore.getState().nodes;
-        let currentNodes = [...currentNodesState];
+        const currentNodes = [...currentNodesState];
 
         subSections.forEach((section) => {
           const { x, y } = findFreePosition(
@@ -271,7 +272,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         }
       }, 1500);
     },
-    [node.id, node.title, node.x, node.y, node.width, node.height, node.platform, updateNode, addNode, connectNodes, setPan, zoom]
+    [node.id, node.title, node.x, node.y, node.width, node.height, node.platform, updateNode, addNode, connectNodes, setPan, zoom, subUiPrompt]
   );
 
   const handleRun = useCallback(
@@ -668,12 +669,20 @@ export const CanvasNodeCard = ({ node }: Props) => {
                       >
                         <RefreshCw className="w-3 h-3" /> Regenerate Variation
                       </button>
-                      <button
-                        onClick={handleGenerateSubUI}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all"
-                      >
-                        <Layers className="w-3 h-3" /> Generate Sub-UI
-                      </button>
+                      <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                        <textarea
+                          value={subUiPrompt}
+                          onChange={(e) => setSubUiPrompt(e.target.value)}
+                          placeholder="What section do you want to generate?"
+                          className="brand-input !py-2 !rounded-xl !text-[10px] resize-none min-h-[60px]"
+                        />
+                        <button
+                          onClick={handleGenerateSubUI}
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all"
+                        >
+                          <Layers className="w-3 h-3" /> Generate
+                        </button>
+                      </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); setShowNextMenu(false); }}
                         className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-muted-foreground text-[10px] font-bold hover:text-foreground transition-all"
