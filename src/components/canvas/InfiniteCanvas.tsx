@@ -13,13 +13,47 @@ export const InfiniteCanvas = () => {
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
-      e.preventDefault();
+      // If we're scrolling over a scrollable element (like a dropdown, code editor, or textarea),
+      // let that element handle the scroll and don't pan the canvas.
+      const target = e.target as HTMLElement;
+      
+      // Recursive check to see if we're inside a scrollable container
+      const isScrollable = (el: HTMLElement | Element | null): boolean => {
+        if (!el || el === canvasRef.current || el === document.body) return false;
+        
+        const htmlEl = el as HTMLElement;
+        const style = window.getComputedStyle(el);
+        const overflowY = style.getPropertyValue('overflow-y');
+        const overflowX = style.getPropertyValue('overflow-x');
+        
+        // Basic overflow check
+        const hasScrollStyle = (val: string) => val === 'auto' || val === 'scroll';
+        const canScrollY = hasScrollStyle(overflowY) && htmlEl.scrollHeight > htmlEl.clientHeight;
+        const canScrollX = hasScrollStyle(overflowX) && htmlEl.scrollWidth > htmlEl.clientWidth;
+        
+        // Special case for text areas and scrollable inputs
+        const isTextControl = htmlEl.tagName === 'TEXTAREA' || (htmlEl.tagName === 'INPUT' && htmlEl.type === 'text');
+        
+        if (canScrollY || canScrollX || isTextControl) return true;
+        
+        return isScrollable(htmlEl.parentElement);
+      };
+
+      // Zoom should always work regardless of what's under the cursor
       if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
         const delta = e.deltaY * -0.001;
         setZoom(zoom + delta);
-      } else {
-        setPan(panX - e.deltaX, panY - e.deltaY);
+        return;
       }
+
+      // If it's a normal scroll and we're over a scrollable element, ignore it for canvas pan
+      if (isScrollable(target)) {
+        return;
+      }
+
+      e.preventDefault();
+      setPan(panX - e.deltaX, panY - e.deltaY);
     },
     [zoom, panX, panY, setZoom, setPan]
   );

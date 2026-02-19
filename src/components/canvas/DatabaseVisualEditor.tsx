@@ -717,6 +717,23 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
 
   // ─── Canvas mouse handlers ───
   const handleCanvasWheel = useCallback((e: React.WheelEvent) => {
+    // If we're scrolling over a scrollable element (like a properties panel or list),
+    // let that element handle the scroll and don't zoom the canvas.
+    const target = e.target as HTMLElement;
+    
+    const isScrollable = (el: HTMLElement | Element | null): boolean => {
+      if (!el || el === canvasRef.current || el === document.body) return false;
+      const htmlEl = el as HTMLElement;
+      const style = window.getComputedStyle(el);
+      const hasScrollStyle = (val: string) => val === 'auto' || val === 'scroll';
+      const canScrollY = hasScrollStyle(style.getPropertyValue('overflow-y')) && htmlEl.scrollHeight > htmlEl.clientHeight;
+      const canScrollX = hasScrollStyle(style.getPropertyValue('overflow-x')) && htmlEl.scrollWidth > htmlEl.clientWidth;
+      if (canScrollY || canScrollX || htmlEl.tagName === 'TEXTAREA' || (htmlEl.tagName === 'INPUT' && htmlEl.type === 'text')) return true;
+      return isScrollable(el.parentElement);
+    };
+
+    if (isScrollable(target)) return;
+
     e.preventDefault();
     setCanvasZoom(prev => Math.max(0.2, Math.min(3, prev * (e.deltaY > 0 ? 0.9 : 1.1))));
   }, []);
@@ -867,7 +884,7 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
           <span className="text-xs font-black uppercase tracking-widest text-white/80">DB Designer</span>
 
           {/* Engine selector */}
-          <div className="flex items-center gap-1 ml-2 px-1 py-0.5 rounded-lg bg-white/5 border border-white/10">
+          <div className="flex items-center gap-1 ml-2 px-1 py-0.5 rounded-lg bg-white/10 border border-white/10">
             {dbEngines.map(eng => {
               const EngIcon = eng.icon;
               return (
@@ -1215,7 +1232,7 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
                       {selectedTable.columns.map(col => (
                         <div key={col.id} className={`rounded-lg border transition-colors ${selectedColumnId === col.id ? 'bg-white/5 border-cyan-500/30' : 'border-white/5 hover:border-white/10'}`}>
                           <div className="flex items-center gap-2 px-2 py-1.5 cursor-pointer" onClick={() => setSelectedColumnId(selectedColumnId === col.id ? null : col.id)}>
-                            {col.isPrimary ? <Key className="w-3 h-3 text-amber-400 shrink-0" /> : <Type className="w-3 h-3 text-white/30 shrink-0" />}
+                            {col.isPrimary ? <Key className="w-3 h-3 text-amber-400 shrink-0" /> : col.reference ? <Link2 className="w-3 h-3 text-purple-400 shrink-0" /> : <Type className="w-3 h-3 text-white/30 shrink-0" />}
                             <span className="text-[11px] text-white/70 flex-1 truncate">{col.name}</span>
                             <span className="text-[9px] text-purple-400/60">{col.type}</span>
                             <button onClick={e => { e.stopPropagation(); deleteColumn(selectedTable.id, col.id); }} className="p-1 rounded hover:bg-red-500/20 text-white/20 hover:text-red-400"><Trash2 className="w-2.5 h-2.5" /></button>
