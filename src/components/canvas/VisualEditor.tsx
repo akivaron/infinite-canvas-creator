@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MousePointer2, Type, Move, ZoomIn, ZoomOut, Undo2, Redo2, Save, Layers, Link2, Search, Plus, PanelLeft, Monitor, Tablet, Smartphone } from 'lucide-react';
+import { X, MousePointer2, Type, Move, ZoomIn, ZoomOut, Undo2, Redo2, Save, Layers, Link2, Search, Plus, PanelLeft, Monitor, Tablet, Smartphone, Server } from 'lucide-react';
 import { useCanvasStore, type CanvasNode, type ElementLink } from '@/stores/canvasStore';
 import { PropertiesPanel, type ElementStyles } from './PropertiesPanel';
 import { ElementsTemplatesPanel } from './ElementsTemplatesPanel';
@@ -463,6 +463,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
       selector: selectedElementSelector,
       label: selectedElement || 'Element',
       targetNodeId,
+      elementType: selectedTag || undefined,
     };
     setElementLinks(prev => {
       const filtered = prev.filter(l => l.selector !== selectedElementSelector);
@@ -472,7 +473,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
     setShowNodePicker(false);
     setNodeSearch('');
     useCanvasStore.getState().connectNodes(node.id, targetNodeId);
-  }, [selectedElementSelector, selectedElement, node.id]);
+  }, [selectedElementSelector, selectedElement, selectedTag, node.id]);
 
   const saveToNode = useCallback(() => {
     return new Promise<void>((resolve) => {
@@ -532,7 +533,11 @@ export const VisualEditor = ({ node, onClose }: Props) => {
     { id: 'move', icon: Move, label: 'Move' },
   ];
 
-  const typeIcons: Record<string, string> = { idea: '✦', design: '◆', code: '⟨/⟩', import: '↑' };
+  const typeIcons: Record<string, string> = { idea: '✦', design: '◆', code: '⟨/⟩', import: '↑', api: '⚡', cli: '▸', database: '⬡' };
+
+  // Separate API nodes for priority display
+  const apiNodes = filteredNodes.filter(n => n.type === 'api');
+  const otherNodes = filteredNodes.filter(n => n.type !== 'api');
 
   return (
     <motion.div
@@ -728,10 +733,42 @@ export const VisualEditor = ({ node, onClose }: Props) => {
                 </div>
               </div>
               <div className="flex-1 overflow-auto p-2 space-y-1">
+                {apiNodes.length > 0 && (
+                  <>
+                    <p className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-rose-400 flex items-center gap-1.5">
+                      <Server className="w-3 h-3" /> API Endpoints
+                    </p>
+                    {apiNodes.map((n) => {
+                      const existingLink = elementLinks.find(l => l.selector === selectedElementSelector && l.targetNodeId === n.id);
+                      return (
+                        <button
+                          key={n.id}
+                          onClick={() => handleLinkToNode(n.id)}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
+                            existingLink ? 'bg-rose-500/10 border border-rose-500/20' : 'hover:bg-rose-500/5 border border-transparent hover:border-rose-500/20'
+                          }`}
+                        >
+                          <span className="text-sm">⚡</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-foreground truncate">{n.title}</div>
+                            <div className="text-[9px] text-rose-400 uppercase font-black tracking-widest">
+                              API{n.language ? ` • ${n.language}` : ''}{n.pageRole ? ` • ${n.pageRole}` : ''}
+                            </div>
+                          </div>
+                          {existingLink && <span className="text-[8px] font-black text-rose-400 uppercase">Linked</span>}
+                        </button>
+                      );
+                    })}
+                    {otherNodes.length > 0 && <div className="h-px bg-border my-2" />}
+                  </>
+                )}
+                {otherNodes.length > 0 && apiNodes.length > 0 && (
+                  <p className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground">Other Nodes</p>
+                )}
                 {filteredNodes.length === 0 && (
                   <p className="text-center py-6 text-[10px] text-muted-foreground">No matching nodes</p>
                 )}
-                {filteredNodes.map((n) => {
+                {otherNodes.map((n) => {
                   const existingLink = elementLinks.find(l => l.selector === selectedElementSelector && l.targetNodeId === n.id);
                   return (
                     <button

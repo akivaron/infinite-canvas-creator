@@ -7,6 +7,8 @@ export interface ElementLink {
   label: string;
   /** Target node ID */
   targetNodeId: string;
+  /** Element type (e.g., 'form', 'button', 'input') */
+  elementType?: string;
 }
 
 export interface CanvasNode {
