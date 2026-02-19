@@ -66,6 +66,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const [showNextMenu, setShowNextMenu] = useState(false);
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [showCodeEditor, setShowCodeEditor] = useState(false);
+  const [showApiLangPicker, setShowApiLangPicker] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -500,7 +501,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
                         <button onClick={() => handleGenerate('mobile')} className="flex-1 py-3 rounded-xl bg-foreground text-background text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2">
                           <Smartphone className="w-3.5 h-3.5" /> Mobile
                         </button>
-                        <button onClick={() => handleGenerate('api')} className="flex-1 py-3 rounded-xl border-2 border-rose-500/50 text-rose-400 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2">
+                        <button onClick={() => setShowApiLangPicker(true)} className="flex-1 py-3 rounded-xl border-2 border-rose-500/50 text-rose-400 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2">
                           <Server className="w-3.5 h-3.5" /> API
                         </button>
                       </div>
@@ -522,7 +523,41 @@ export const CanvasNodeCard = ({ node }: Props) => {
                   )}
                 </AnimatePresence>
 
-                {/* DESIGN node: Next button with dropdown */}
+                {/* API Language picker */}
+                <AnimatePresence>
+                  {showApiLangPicker && (
+                    <motion.div className="w-full space-y-2" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground px-1">Select Language</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { label: 'Node.js', value: 'nodejs', color: 'border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10' },
+                          { label: 'Python', value: 'python', color: 'border-blue-500/50 text-blue-400 hover:bg-blue-500/10' },
+                          { label: 'Go', value: 'go', color: 'border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10' },
+                          { label: 'Rust', value: 'rust', color: 'border-orange-500/50 text-orange-400 hover:bg-orange-500/10' },
+                          { label: 'Java', value: 'java', color: 'border-red-500/50 text-red-400 hover:bg-red-500/10' },
+                          { label: 'PHP', value: 'php', color: 'border-violet-500/50 text-violet-400 hover:bg-violet-500/10' },
+                        ].map((lang) => (
+                          <button
+                            key={lang.value}
+                            onClick={() => {
+                              setShowApiLangPicker(false);
+                              // Store language on the node, then generate
+                              updateNode(node.id, { language: lang.value } as any);
+                              handleGenerate('api');
+                            }}
+                            className={`py-2.5 rounded-xl border-2 ${lang.color} text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center`}
+                          >
+                            {lang.label}
+                          </button>
+                        ))}
+                      </div>
+                      <button onClick={() => setShowApiLangPicker(false)} className="w-full py-2 rounded-xl border border-border text-muted-foreground hover:text-foreground text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                        <X className="w-3 h-3" /> Cancel
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 {node.type === 'design' && node.status === 'ready' && node.platform && !showNextMenu && (
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowNextMenu(true); }}

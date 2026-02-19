@@ -33,6 +33,8 @@ export interface CanvasNode {
   platform?: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database';
   /** element-to-node links within the visual editor */
   elementLinks?: ElementLink[];
+  /** programming language for API/CLI nodes */
+  language?: string;
 }
 
 export interface UIVariation {
