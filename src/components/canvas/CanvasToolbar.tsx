@@ -83,7 +83,7 @@ const ShortcutsModal = ({ onClose }: { onClose: () => void }) => (
           <X className="w-4 h-4" />
         </button>
       </div>
-      <div className="space-y-3">
+      <div className="space-y-4">
         {[
           ['Scroll', 'Pan canvas'],
           ['Ctrl/⌘ + Scroll', 'Zoom in/out'],
@@ -385,7 +385,7 @@ export const CanvasToolbar = () => {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 20, opacity: 0 }}
           >
-            <div className="flex flex-col gap-2 p-4 rounded-2xl bg-card/95 backdrop-blur-xl border border-border shadow-2xl shadow-primary/5 w-[600px]">
+            <div className="flex flex-col gap-4 p-5 rounded-2xl bg-card/95 backdrop-blur-xl border border-border shadow-2xl shadow-primary/5 w-[600px]">
               <textarea
                 autoFocus
                 value={ideaText}
@@ -421,7 +421,7 @@ export const CanvasToolbar = () => {
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.15 }}
       >
-        <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-card/90 backdrop-blur-xl border border-border shadow-2xl shadow-primary/5">
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-card/90 backdrop-blur-xl border border-border shadow-2xl shadow-primary/5">
           <ToolButton icon={Sparkles} label="New Idea (N)" onClick={() => setShowIdeaInput(true)} accent />
 
           {/* Add node menu */}

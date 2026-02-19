@@ -501,7 +501,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
               
               {/* Editing mode */}
               {isEditing ? (
-                <div className="mb-4 space-y-2" onClick={(e) => e.stopPropagation()}>
+                <div className="mb-6 space-y-4" onClick={(e) => e.stopPropagation()}>
                   <input ref={titleInputRef} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') handleCancelEdit(); }} className="brand-input !py-2 !rounded-xl !text-sm font-bold" placeholder="Title..." />
                   <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') handleCancelEdit(); }} className="brand-input !py-2 !rounded-xl !text-xs resize-none" rows={3} placeholder="Description..." />
                   <div className="flex gap-2">
@@ -511,14 +511,14 @@ export const CanvasNodeCard = ({ node }: Props) => {
                 </div>
               ) : (
                 <>
-                  <h3 className="text-base font-black tracking-tight uppercase text-foreground mb-1.5 line-clamp-2 cursor-text" onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>{node.title}</h3>
-                  <p className="brand-description mb-3 line-clamp-3 cursor-text" onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>{node.description}</p>
+                  <h3 className="text-base font-black tracking-tight uppercase text-foreground mb-2 line-clamp-2 cursor-text" onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>{node.title}</h3>
+                  <p className="brand-description mb-4 line-clamp-3 cursor-text" onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>{node.description}</p>
                 </>
               )}
 
               {/* Live preview for design/code nodes with content */}
               {node.content && node.type !== 'idea' && (
-                <div className="mb-3 rounded-xl border border-border overflow-hidden" style={{ height: node.type === 'code' ? 240 : 180 }}>
+                <div className="mb-5 rounded-xl border border-border overflow-hidden" style={{ height: node.type === 'code' ? 240 : 180 }}>
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/50 border-b border-border">
                     <Monitor className="w-3 h-3 text-muted-foreground" />
                     <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Preview</span>
@@ -541,14 +541,14 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
               {/* Code preview for non-content nodes */}
               {node.generatedCode && !node.content && (
-                <div className="mb-3 rounded-xl bg-secondary/50 border border-border p-3 max-h-24 overflow-hidden">
+                <div className="mb-5 rounded-xl bg-secondary/50 border border-border p-3 max-h-24 overflow-hidden">
                   <pre className="text-[10px] text-muted-foreground font-mono whitespace-pre-wrap">{node.generatedCode.slice(0, 200)}...</pre>
                 </div>
               )}
 
               {/* File name */}
               {node.fileName && (
-                <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/50 border border-border">
+                <div className="mb-5 flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/50 border border-border">
                   <FileCode className="w-4 h-4 text-muted-foreground" />
                   <span className="text-xs font-mono text-muted-foreground truncate">{node.fileName}</span>
                 </div>
@@ -556,7 +556,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
               {/* Connection count */}
               {node.connectedTo.length > 0 && (
-                <div className="mb-3 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/10">
+                <div className="mb-5 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/10">
                   <Layers className="w-3 h-3 text-primary" />
                   <span className="text-[10px] font-bold text-primary">{node.connectedTo.length} connection{node.connectedTo.length > 1 ? 's' : ''}</span>
                 </div>
@@ -567,7 +567,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
                 {/* AI Model Picker - Shown for nodes capable of generation */}
                 {((node.type === 'idea') || 
                   (node.type === 'design' && node.status === 'ready' && node.platform)) && !showVisualEditor && !showCodeEditor && (
-                  <div className="w-full space-y-1.5 mb-1.5" onClick={(e) => e.stopPropagation()}>
+                  <div className="w-full space-y-2 mb-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1.5 px-1">
                       <Cpu className="w-3 h-3 text-primary" />
                       <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">AI Model</p>

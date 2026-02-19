@@ -469,7 +469,7 @@ export const ApiVisualEditor = ({ node, onClose }: Props) => {
               </div>
             </div>
             <ScrollArea className="flex-1">
-              <div className="px-2 pb-3 space-y-1">
+              <div className="px-2 pb-3 space-y-2">
                 {categories.map(cat => {
                   const items = filteredElements.filter(el => el.category === cat);
                   if (items.length === 0) return null;
@@ -485,7 +485,7 @@ export const ApiVisualEditor = ({ node, onClose }: Props) => {
                         <span className="ml-auto text-[8px] font-bold text-muted-foreground/50">{items.length}</span>
                       </button>
                       {isExpanded && (
-                        <div className="space-y-0.5 ml-1">
+                        <div className="space-y-1 ml-1">
                           {items.map(el => (
                             <div
                               key={el.id}

@@ -444,7 +444,7 @@ export const CliVisualEditor = ({ node, onClose }: Props) => {
               </div>
             </div>
             <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
+              <div className="p-2 space-y-2">
                 {categories.map(cat => {
                   const items = filteredElements.filter(el => el.category === cat);
                   if (items.length === 0) return null;
@@ -458,7 +458,7 @@ export const CliVisualEditor = ({ node, onClose }: Props) => {
                         <span className="ml-auto text-[8px] text-muted-foreground/50">{items.length}</span>
                       </button>
                       {expanded && (
-                        <div className="space-y-0.5 ml-1">
+                        <div className="space-y-1 ml-1">
                           {items.map(el => {
                             const Icon = el.icon;
                             return (
@@ -487,7 +487,7 @@ export const CliVisualEditor = ({ node, onClose }: Props) => {
           onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
           onDrop={handleDrop}>
           <ScrollArea className="flex-1">
-            <div className="p-6 max-w-2xl mx-auto space-y-2">
+            <div className="p-6 max-w-2xl mx-auto space-y-4">
               {steps.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                   <Terminal className="w-12 h-12 mb-4 opacity-30" />

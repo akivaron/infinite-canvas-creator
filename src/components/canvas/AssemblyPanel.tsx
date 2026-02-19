@@ -88,7 +88,7 @@ export const AssemblyPanel = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {orderedPicked.length === 0 && (
                 <div className="text-center py-12">
                   <p className="brand-description">No sections picked yet.</p>
@@ -122,7 +122,7 @@ export const AssemblyPanel = () => {
             </div>
 
             {/* Actions */}
-            <div className="p-4 border-t border-border space-y-2">
+            <div className="p-4 border-t border-border space-y-4">
               <div className="flex gap-2">
                 <button
                   onClick={handleDownload}

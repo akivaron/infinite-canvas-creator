@@ -145,7 +145,7 @@ export const PreviewSelectionPanel = () => {
                 <h2 className="text-2xl font-black tracking-tight uppercase text-foreground">
                   Choose Your Design
                 </h2>
-                <p className="brand-description mt-1">
+                <p className="brand-description mt-2">
                   Preview and select the UI sections you want. Each selection becomes a node on your canvas.
                 </p>
               </div>
@@ -209,7 +209,7 @@ export const PreviewSelectionPanel = () => {
 
                       {/* Info */}
                       <div className="p-4">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-3">
                           <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
                             <Icon className="w-4 h-4 text-primary" />
                           </div>

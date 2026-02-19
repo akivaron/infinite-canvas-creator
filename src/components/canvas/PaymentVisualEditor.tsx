@@ -312,7 +312,7 @@ export const PaymentVisualEditor = ({ node, onClose }: Props) => {
               </div>
             </div>
             <ScrollArea className="flex-1">
-              <div className="px-2 space-y-1">
+              <div className="px-2 space-y-2">
                 {categories.map(cat => (
                   <div key={cat}>
                     <button
@@ -323,7 +323,7 @@ export const PaymentVisualEditor = ({ node, onClose }: Props) => {
                       {expandedCategories[cat] !== false ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                     </button>
                     {expandedCategories[cat] !== false && (
-                      <div className="space-y-1 ml-2 mb-2">
+                      <div className="space-y-1.5 ml-2 mb-2">
                         {filteredElements.filter(e => e.category === cat).map(el => (
                           <div
                             key={el.id}
@@ -365,7 +365,7 @@ export const PaymentVisualEditor = ({ node, onClose }: Props) => {
                   <span className="text-muted-foreground text-lg mr-1">$</span>{plan.price}
                   {plan.systemType === 'Subscription' && <span className="text-xs text-muted-foreground ml-1">/{plan.interval === 'Monthly' ? 'mo' : 'yr'}</span>}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {plan.features.slice(0, 3).map((f, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
                       <CheckCircle className="w-3 h-3 text-emerald-500" /> {f}
@@ -461,7 +461,7 @@ export const PaymentVisualEditor = ({ node, onClose }: Props) => {
 
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-2">Features</label>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {selectedPlan.features.map((f, i) => (
                         <div key={i} className="flex items-center gap-2 group">
                           <input

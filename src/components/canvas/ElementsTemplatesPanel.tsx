@@ -513,7 +513,7 @@ const CategorySection = ({ title, icon: Icon, children }: { title: string; icon:
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="px-2 pb-2 space-y-1">
+            <div className="px-2 pb-2 space-y-2">
               {children}
             </div>
           </motion.div>

@@ -1185,7 +1185,7 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
                 <button onClick={() => setShowRightPanel(false)} className="p-1 rounded-lg hover:bg-white/10 text-white/30 hover:text-white transition-colors"><X className="w-3.5 h-3.5" /></button>
               </div>
               <ScrollArea className="flex-1">
-                <div className="p-3 space-y-4">
+                <div className="p-3 space-y-6">
                   {/* Table name */}
                   <div>
                     <label className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5 block">{eLabel} Name</label>
@@ -1223,7 +1223,7 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
                           <AnimatePresence>
                             {selectedColumnId === col.id && (
                               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                                <div className="px-2 pb-2 space-y-2">
+                                <div className="px-2 pb-2 space-y-3">
                                   <input value={col.name} onChange={e => updateColumn(selectedTable.id, col.id, { name: e.target.value })} className="w-full px-2 py-1.5 rounded bg-white/5 border border-white/10 text-[11px] text-white outline-none focus:border-cyan-500/50" placeholder="Column name" />
                                   <select value={col.type} onChange={e => updateColumn(selectedTable.id, col.id, { type: e.target.value as ColumnType })} className="w-full px-2 py-1.5 rounded bg-white/5 border border-white/10 text-[11px] text-white outline-none focus:border-cyan-500/50">
                                     {columnTypes.map(t => <option key={t} value={t}>{t}</option>)}
