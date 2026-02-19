@@ -60,7 +60,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
     selectedNodeId, selectNode, startDrag, updateNode, removeNode, duplicateNode,
     togglePick, connectingFromId, startConnecting, finishConnecting,
     addNode, connectNodes, setPan, setZoom, zoom, panX, panY,
-    aiModel, setAiModel,
+    aiModel, setAiModel, availableModels,
   } = useCanvasStore();
 
   const isSelected = selectedNodeId === node.id;
@@ -615,12 +615,25 @@ export const CanvasNodeCard = ({ node }: Props) => {
                       <SelectTrigger className="w-full bg-secondary/30 border-border h-9 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-secondary/50 transition-all border-dashed">
                         <SelectValue placeholder="Select Model" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-border bg-card shadow-2xl overflow-hidden">
+                      <SelectContent className="rounded-2xl border-border bg-card shadow-2xl overflow-hidden max-h-[300px]">
                         <SelectItem value="auto" className="text-[10px] font-bold uppercase tracking-widest focus:bg-primary/10">Auto (Balanced)</SelectItem>
-                        <SelectItem value="claude" className="text-[10px] font-bold uppercase tracking-widest focus:bg-primary/10">Claude 3.5 Sonnet</SelectItem>
-                        <SelectItem value="gemini" className="text-[10px] font-bold uppercase tracking-widest focus:bg-primary/10">Gemini 1.5 Pro</SelectItem>
-                        <SelectItem value="gemini-flash" className="text-[10px] font-bold uppercase tracking-widest focus:bg-primary/10">Gemini 1.5 Flash</SelectItem>
-                        <SelectItem value="gpt-4o" className="text-[10px] font-bold uppercase tracking-widest focus:bg-primary/10">GPT-4o High Speed</SelectItem>
+                        {availableModels.length > 0 ? (
+                          availableModels.map((model) => (
+                            <SelectItem key={model.id} value={model.id} className="text-[10px] font-bold uppercase tracking-widest focus:bg-primary/10">
+                              <div className="flex items-center gap-1.5 overflow-hidden w-full">
+                                {model.free && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />}
+                                <span className="truncate">{model.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <>
+                            <SelectItem value="claude" className="text-[10px] font-bold uppercase tracking-widest focus:bg-primary/10">Claude 3.5 Sonnet</SelectItem>
+                            <SelectItem value="gemini" className="text-[10px] font-bold uppercase tracking-widest focus:bg-primary/10">Gemini 1.5 Pro</SelectItem>
+                            <SelectItem value="gemini-flash" className="text-[10px] font-bold uppercase tracking-widest focus:bg-primary/10">Gemini 1.5 Flash</SelectItem>
+                            <SelectItem value="gpt-4o" className="text-[10px] font-bold uppercase tracking-widest focus:bg-primary/10">GPT-4o High Speed</SelectItem>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
