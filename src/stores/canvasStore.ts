@@ -60,6 +60,8 @@ interface CanvasState {
   dragOffset: { x: number; y: number };
   darkMode: boolean;
   aiModel: string;
+  openRouterKey: string | null;
+  availableModels: { id: string; name: string; free: boolean }[];
 
   // Preview selection
   previewPanelOpen: boolean;
@@ -86,6 +88,8 @@ interface CanvasState {
   connectNodes: (fromId: string, toId: string) => void;
   toggleDarkMode: () => void;
   setAiModel: (model: string) => void;
+  setOpenRouterKey: (key: string | null) => void;
+  setAvailableModels: (models: { id: string; name: string; free: boolean }[]) => void;
   togglePick: (id: string) => void;
   getPickedNodes: () => CanvasNode[];
   openPreviewPanel: (sourceNodeId: string, variations: UIVariation[]) => void;
@@ -110,6 +114,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   dragOffset: { x: 0, y: 0 },
   darkMode: false,
   aiModel: 'auto',
+  openRouterKey: localStorage.getItem('openrouter_key'),
+  availableModels: JSON.parse(localStorage.getItem('available_models') || '[]'),
   previewPanelOpen: false,
   previewVariations: [],
   previewSourceNodeId: null,
@@ -204,6 +210,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
 
   setAiModel: (model: string) => set({ aiModel: model }),
+
+  setOpenRouterKey: (key: string | null) => {
+    if (key) localStorage.setItem('openrouter_key', key);
+    else localStorage.removeItem('openrouter_key');
+    set({ openRouterKey: key });
+  },
+
+  setAvailableModels: (models) => {
+    localStorage.setItem('available_models', JSON.stringify(models));
+    set({ availableModels: models });
+  },
 
   togglePick: (id) =>
     set((state) => ({

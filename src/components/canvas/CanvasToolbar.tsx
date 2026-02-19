@@ -5,10 +5,11 @@ import {
   Search, X, Layers, Moon, Sun, Copy, Trash2,
   Code, FileCode, Grid3X3, Keyboard, Download, Eye, Package,
   Plus, Globe, Smartphone, Server, Terminal, Database, Monitor, ChevronUp,
-  CreditCard
+  CreditCard, Settings
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { findFreePosition } from '@/lib/layout';
+import { SettingsModal } from './SettingsModal';
 
 /* ── Minimap ────────────────────────────────── */
 const Minimap = () => {
@@ -120,6 +121,7 @@ export const CanvasToolbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showMinimap, setShowMinimap] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
@@ -492,6 +494,7 @@ export const CanvasToolbar = () => {
           <ToolButton icon={darkMode ? Sun : Moon} label="Theme (D)" onClick={toggleDarkMode} />
           <ToolButton icon={Download} label="Export JSON" onClick={handleExport} />
           <ToolButton icon={Keyboard} label="Shortcuts" onClick={() => setShowShortcuts(true)} />
+          <ToolButton icon={Settings} label="Settings" onClick={() => setShowSettings(true)} active={showSettings} />
 
           {pickedCount > 0 && (
             <>
@@ -514,6 +517,11 @@ export const CanvasToolbar = () => {
       {/* Shortcuts modal */}
       <AnimatePresence>
         {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      </AnimatePresence>
+
+      {/* Settings modal */}
+      <AnimatePresence>
+        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       </AnimatePresence>
 
       {/* Clear all */}

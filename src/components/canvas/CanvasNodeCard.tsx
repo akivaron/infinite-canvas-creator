@@ -9,7 +9,7 @@ import {
   Cpu, CreditCard
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
-import { generateFullPageVariations, getRandomVariation, generateSubSections } from './generateVariations';
+import { generateFullPageVariations, getRandomVariation, generateSubSections, generateFullPageWithAI, generateSubSectionsWithAI } from './generateVariations';
 import { findFreePosition } from '@/lib/layout';
 import {
   Select,
@@ -137,13 +137,25 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
   /* ── Generate: create full-page variation nodes ── */
   const handleGenerate = useCallback(
-    (platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database') => {
+    async (platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database') => {
       setShowPlatformPicker(false);
       updateNode(node.id, { status: 'generating', platform });
 
-      setTimeout(() => {
+      const { aiModel, openRouterKey } = useCanvasStore.getState();
+      const useAI = aiModel !== 'auto' && openRouterKey;
+
+      try {
+        let variations;
+        if (useAI) {
+          const aiVariation = await generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, aiModel);
+          variations = [aiVariation];
+        } else {
+          // Add a small delay for simulated "static" generation to feel better
+          await new Promise(r => setTimeout(r, 1200));
+          variations = generateFullPageVariations(node.title, node.description, platform);
+        }
+
         updateNode(node.id, { status: 'ready' });
-        const variations = generateFullPageVariations(node.title, node.description, platform);
         
         const nodeWidth = 420;
         const nodeHeight = 340;
@@ -190,34 +202,45 @@ export const CanvasNodeCard = ({ node }: Props) => {
         });
 
         // Auto-pan to show the area where nodes were added (roughly)
-        // We'll just pan to the first new node area for simplicity
         if (currentNodes.length > currentNodesState.length) {
           const firstNew = currentNodes[currentNodesState.length];
           const vw = window.innerWidth;
           const vh = window.innerHeight;
           setPan(vw / 2 - (firstNew.x + nodeWidth/2) * zoom, vh / 2 - (firstNew.y + nodeHeight/2) * zoom);
         }
-      }, 1800);
+      } catch (error) {
+        console.error('Generation failed:', error);
+        updateNode(node.id, { status: 'idle' });
+      }
     },
     [node.id, node.title, node.description, node.x, node.y, node.width, updateNode, addNode, connectNodes, setPan, zoom]
   );
 
   /* ── Regenerate: swap content with a different full-page variation ── */
   const handleRegenerate = useCallback(
-    (e: MouseEvent) => {
+    async (e: MouseEvent) => {
       e.stopPropagation();
       if (!node.platform) return;
       updateNode(node.id, { status: 'generating' });
 
-      setTimeout(() => {
-        // Find parent idea node to get original title
-        const parentNode = node.parentId
-          ? useCanvasStore.getState().nodes.find(n => n.id === node.parentId)
-          : null;
-        const ideaTitle = parentNode?.title || node.title;
-        const ideaDesc = parentNode?.description || node.description;
+      const { aiModel, openRouterKey } = useCanvasStore.getState();
+      const useAI = aiModel !== 'auto' && openRouterKey;
 
-        const variation = getRandomVariation(ideaTitle, ideaDesc, node.platform!, node.generatedCode);
+      try {
+        let variation;
+        if (useAI) {
+          variation = await generateFullPageWithAI(node.title, node.description, node.platform!, openRouterKey!, aiModel);
+        } else {
+          // Find parent idea node to get original title
+          const parentNode = node.parentId
+            ? useCanvasStore.getState().nodes.find(n => n.id === node.parentId)
+            : null;
+          const ideaTitle = parentNode?.title || node.title;
+          const ideaDesc = parentNode?.description || node.description;
+
+          await new Promise(r => setTimeout(r, 1000));
+          variation = getRandomVariation(ideaTitle, ideaDesc, node.platform!, node.generatedCode);
+        }
         
         updateNode(node.id, {
           status: 'ready',
@@ -226,22 +249,35 @@ export const CanvasNodeCard = ({ node }: Props) => {
           content: variation.previewHtml,
           generatedCode: variation.code,
         });
-      }, 1200);
+      } catch (error) {
+        console.error('Regeneration failed:', error);
+        updateNode(node.id, { status: 'ready' });
+      }
     },
     [node.id, node.title, node.description, node.parentId, node.platform, node.generatedCode, updateNode]
   );
 
   /* ── Generate Sub-UI sections from a page ── */
   const handleGenerateSubUI = useCallback(
-    (e: MouseEvent) => {
+    async (e: MouseEvent) => {
       e.stopPropagation();
       setShowNextMenu(false);
       updateNode(node.id, { status: 'generating' });
 
-      setTimeout(() => {
-        updateNode(node.id, { status: 'ready' });
-        const subSections = generateSubSections(node.title, node.platform || 'web', subUiPrompt);
+      const { aiModel, openRouterKey } = useCanvasStore.getState();
+      const useAI = aiModel !== 'auto' && openRouterKey;
 
+      try {
+        let subSections;
+        if (useAI) {
+          subSections = await generateSubSectionsWithAI(node.title, node.platform || 'web', subUiPrompt, openRouterKey!, aiModel);
+        } else {
+          await new Promise(r => setTimeout(r, 1200));
+          subSections = generateSubSections(node.title, node.platform || 'web', subUiPrompt);
+        }
+
+        updateNode(node.id, { status: 'ready' });
+        
         const nodeWidth = 380;
         const nodeHeight = 260;
         const padding = 60;
@@ -292,7 +328,10 @@ export const CanvasNodeCard = ({ node }: Props) => {
           const vh = window.innerHeight;
           setPan(vw / 2 - (firstNew.x + nodeWidth/2) * zoom, vh / 2 - (firstNew.y + nodeHeight/2) * zoom);
         }
-      }, 1500);
+      } catch (error) {
+        console.error('Sub-UI generation failed:', error);
+        updateNode(node.id, { status: 'ready' });
+      }
     },
     [node.id, node.title, node.x, node.y, node.width, node.platform, updateNode, addNode, connectNodes, setPan, zoom, subUiPrompt]
   );
