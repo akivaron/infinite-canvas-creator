@@ -73,7 +73,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [showCodeEditor, setShowCodeEditor] = useState(false);
   const [showApiLangPicker, setShowApiLangPicker] = useState(false);
-  const [variationCount, setVariationCount] = useState<2 | 3 | 4>(3);
+  const [variationCount, setVariationCount] = useState<1 | 2 | 3 | 4>(1);
   const [subUiPrompt, setSubUiPrompt] = useState('');
   const titleInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -267,10 +267,10 @@ export const CanvasNodeCard = ({ node }: Props) => {
       try {
         let subSections;
         if (useAI) {
-          subSections = await generateSubSectionsWithAI(node.title, node.platform || 'web', subUiPrompt, openRouterKey!, aiModel);
+          subSections = await generateSubSectionsWithAI(node.title, node.platform || 'web', subUiPrompt, openRouterKey!, aiModel, variationCount);
         } else {
           await new Promise(r => setTimeout(r, 1200));
-          subSections = generateSubSections(node.title, node.platform || 'web', subUiPrompt);
+          subSections = generateSubSections(node.title, node.platform || 'web', subUiPrompt).slice(0, variationCount);
         }
 
         updateNode(node.id, { status: 'ready' });
@@ -622,7 +622,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
                     <div className="flex flex-col gap-1 items-center bg-secondary/30 p-1 rounded-xl border border-border/50">
                       <p className="text-[7px] font-black uppercase tracking-tighter text-muted-foreground">Variations</p>
                       <div className="flex gap-0.5">
-                        {[2, 3, 4].map((num) => (
+                        {[1, 2, 3, 4].map((num) => (
                           <button
                             key={num}
                             onClick={() => setVariationCount(num as any)}
@@ -730,6 +730,20 @@ export const CanvasNodeCard = ({ node }: Props) => {
                         <RefreshCw className="w-3 h-3" /> Regenerate Variation
                       </button>
                       <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Variations</p>
+                          <div className="flex gap-0.5 bg-secondary/30 p-1 rounded-xl border border-border/50">
+                            {[1, 2, 3, 4].map((num) => (
+                              <button
+                                key={num}
+                                onClick={() => setVariationCount(num as any)}
+                                className={`w-6 h-6 rounded-lg text-[9px] font-black transition-all ${variationCount === num ? 'bg-primary text-primary-foreground shadow-md' : 'hover:bg-primary/10 text-muted-foreground'}`}
+                              >
+                                {num}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                         <textarea
                           value={subUiPrompt}
                           onChange={(e) => setSubUiPrompt(e.target.value)}

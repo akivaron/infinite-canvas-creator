@@ -1010,10 +1010,11 @@ export async function generateSubSectionsWithAI(
   platform: string,
   prompt: string,
   apiKey: string,
-  modelId: string
+  modelId: string,
+  count: number = 3
 ): Promise<SubSection[]> {
   const systemPrompt = `You are a world-class ${platform} designer and developer. 
-Your task is to generate 3 smaller UI components/sections for a project named "${title}" based on the user's specific prompt: "${prompt}".
+Your task is to generate ${count} smaller UI components/sections for a project named "${title}" based on the user's specific prompt: "${prompt}".
 
 Return your response as a JSON object with exactly this field:
 {
@@ -1032,20 +1033,24 @@ Return your response as a JSON object with exactly this field:
 Ensure sections are focused, modular, and beautiful. 
 Do not include any text outside the JSON object.`;
 
-  const userPrompt = `Generate 3 UI sections for "${title}" based on: ${prompt}`;
+  const userPrompt = `Generate ${count} UI sections for "${title}" based on: ${prompt}`;
 
   try {
     const response = await generateOpenRouterCompletion(apiKey, modelId, userPrompt, systemPrompt);
+    
+    // Attempt to parse JSON from the response
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('AI response did not contain valid JSON');
     
     const data = JSON.parse(jsonMatch[0]);
-    return (data.sections || []).map((s: any) => ({
+    
+    return (data.sections || []).slice(0, count).map((s: any) => ({
       ...s,
       id: `ai-sub-${++variationCounter}-${Date.now()}`
     }));
   } catch (error) {
     console.error('Error in Sub-UI AI generation:', error);
-    return generateSubSections(title, platform as any, prompt);
+    // Fallback to static generation, limited by count
+    return generateSubSections(title, platform as any, prompt).slice(0, count);
   }
 }
