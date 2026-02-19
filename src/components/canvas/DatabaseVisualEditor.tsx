@@ -544,7 +544,9 @@ function parseSchema(content?: string): { tables: DbTable[]; relations: DbRelati
   try {
     const parsed = JSON.parse(content);
     if (parsed.tables) return parsed;
-  } catch {}
+  } catch (e) {
+    // Not valid JSON
+  }
   return { tables: [], relations: [] };
 }
 

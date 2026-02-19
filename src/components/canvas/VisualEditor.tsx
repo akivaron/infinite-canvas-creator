@@ -660,7 +660,9 @@ export const VisualEditor = ({ node, onClose }: Props) => {
               } else {
                 iframeRef.current?.contentWindow?.postMessage({ type: 'insertElement', tag }, '*');
               }
-            } catch {}
+            } catch (e) {
+              console.error('Failed to parse dropped element:', e);
+            }
           }}
         >
           <div

@@ -222,7 +222,7 @@ export const CanvasToolbar = () => {
       const files = e.target.files;
       if (!files) return;
       
-      let currentNodes = [...nodes];
+      const currentNodes = [...nodes];
       const padding = 60;
       const nodeWidth = 360;
       const nodeHeight = 300;

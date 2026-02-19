@@ -92,7 +92,11 @@ export const CanvasNodeCard = ({ node }: Props) => {
       for (const entry of entries) {
         const newHeight = Math.round(entry.contentRect.height + 40); // account for padding/header
         if (Math.abs(newHeight - (node.height || 0)) > 10) {
-          updateNode(node.id, { height: newHeight });
+          // Use requestAnimationFrame to avoid "ResizeObserver loop limit exceeded" error
+          // by pushing the state update to the next frame
+          window.requestAnimationFrame(() => {
+            updateNode(node.id, { height: newHeight });
+          });
         }
       }
     });
@@ -195,7 +199,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         }
       }, 1800);
     },
-    [node.id, node.title, node.description, node.x, node.y, node.width, node.height, updateNode, addNode, connectNodes, setPan, zoom]
+    [node.id, node.title, node.description, node.x, node.y, node.width, updateNode, addNode, connectNodes, setPan, zoom]
   );
 
   /* ── Regenerate: swap content with a different full-page variation ── */
@@ -290,7 +294,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         }
       }, 1500);
     },
-    [node.id, node.title, node.x, node.y, node.width, node.height, node.platform, updateNode, addNode, connectNodes, setPan, zoom, subUiPrompt]
+    [node.id, node.title, node.x, node.y, node.width, node.platform, updateNode, addNode, connectNodes, setPan, zoom, subUiPrompt]
   );
 
   const handleRun = useCallback(
@@ -514,7 +518,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
               {/* Live preview for design/code nodes with content */}
               {node.content && node.type !== 'idea' && (
-                <div className="mb-3 rounded-xl border border-border overflow-hidden" style={{ height: node.type === 'code' ? Math.max((node.height || 300) - 200, 150) : 180 }}>
+                <div className="mb-3 rounded-xl border border-border overflow-hidden" style={{ height: node.type === 'code' ? 240 : 180 }}>
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/50 border-b border-border">
                     <Monitor className="w-3 h-3 text-muted-foreground" />
                     <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Preview</span>

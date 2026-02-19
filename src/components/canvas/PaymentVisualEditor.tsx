@@ -89,7 +89,9 @@ function parseConfig(content?: string): PaymentConfig {
   try {
     const parsed = JSON.parse(content);
     if (parsed.provider) return parsed;
-  } catch {}
+  } catch (e) {
+    // Not valid JSON
+  }
   return defaultConfig();
 }
 
@@ -244,7 +246,9 @@ export const PaymentVisualEditor = ({ node, onClose }: Props) => {
           updatePlan(selectedPlanId, { features: [...plan.features, element.label] });
         }
       }
-    } catch {}
+    } catch (e) {
+      console.error('Failed to parse dropped payment element:', e);
+    }
   }, [config.plans, selectedPlanId, addPlan, updatePlan, updateConfig]);
 
   const filteredElements = searchQuery

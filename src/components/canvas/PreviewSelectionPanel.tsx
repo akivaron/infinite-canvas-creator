@@ -68,7 +68,7 @@ export const PreviewSelectionPanel = () => {
     // However, since addNode is async-ish (zustand state update), 
     // let's do it with a local copy of nodes to ensure no overlap between the new ones
     const nodesFromStore = useCanvasStore.getState().nodes;
-    let currentNodes = [...nodesFromStore];
+    const currentNodes = [...nodesFromStore];
     const sourceNode = nodesFromStore.find((n) => n.id === previewSourceNodeId);
     if (!sourceNode) return;
 

@@ -159,7 +159,9 @@ function parseEndpoints(content?: string): ApiEndpoint[] {
   try {
     const parsed = JSON.parse(content);
     if (Array.isArray(parsed)) return parsed;
-  } catch {}
+  } catch (e) {
+    // Invalid JSON or not an array
+  }
   return [];
 }
 
@@ -383,7 +385,9 @@ export const ApiVisualEditor = ({ node, onClose }: Props) => {
         };
         if (mwHeaders[element.id]) addParam('headers', mwHeaders[element.id]);
       }
-    } catch {}
+    } catch (e) {
+      console.error('Failed to parse dropped element:', e);
+    }
   }, [selectedEndpoint, addEndpoint, addParam, updateSelectedEndpoint]);
 
   const filteredElements = searchQuery
