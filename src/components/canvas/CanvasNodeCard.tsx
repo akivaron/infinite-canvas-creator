@@ -885,17 +885,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         document.body
       )}
       {showVisualEditor && node.type === 'env' && createPortal(
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-lg h-[500px] flex flex-col relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <button 
-              onClick={() => setShowVisualEditor(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition-all z-10"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <EnvVisualEditor nodeId={node.id} />
-          </div>
-        </div>,
+        <EnvVisualEditor node={node} onClose={() => setShowVisualEditor(false)} />,
         document.body
       )}
       {showVisualEditor && node.type !== 'api' && node.type !== 'cli' && node.type !== 'database' && node.type !== 'payment' && createPortal(
