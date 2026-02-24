@@ -481,18 +481,28 @@ export const VisualEditor = ({ node, onClose }: Props) => {
       const handler = (e: MessageEvent) => {
         if (e.data.type === 'content') {
           const html = e.data.html;
-          const updatedFiles = node.generatedFiles ? node.generatedFiles.map(f => {
-            if (f.path === 'index.html' || f.path === 'public/index.html') {
-              return { ...f, content: html };
-            }
-            return f;
-          }) : undefined;
+
+          let updatedFiles = node.generatedFiles ? [...node.generatedFiles] : [];
+
+          const htmlFileIndex = updatedFiles.findIndex(f =>
+            f.path === 'index.html' ||
+            f.path === 'public/index.html' ||
+            f.path.endsWith('.html')
+          );
+
+          if (htmlFileIndex >= 0) {
+            updatedFiles[htmlFileIndex] = { ...updatedFiles[htmlFileIndex], content: html };
+          } else if (updatedFiles.length === 0) {
+            updatedFiles = [{ path: 'index.html', content: html, language: 'html' }];
+          }
+
+          const allCode = updatedFiles.map(f => `// === ${f.path} ===\n${f.content}`).join('\n\n');
 
           updateNode(node.id, {
             content: html,
-            generatedCode: html,
+            generatedCode: allCode,
             elementLinks,
-            ...(updatedFiles ? { generatedFiles: updatedFiles } : {}),
+            generatedFiles: updatedFiles,
           });
           setIsDirty(false);
           window.removeEventListener('message', handler);
