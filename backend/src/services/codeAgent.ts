@@ -1,10 +1,18 @@
 import type { GenerationRequest, GenerationResponse, StreamChunk, CodeContext } from '../types/agent.js';
 import { ContextAnalyzer } from './contextAnalyzer.js';
 import { DiffGenerator } from './diffGenerator.js';
+import { ASTAnalyzer } from './astAnalyzer.js';
+import { SymbolResolver } from './symbolResolver.js';
+import { ChangeDetector } from './changeDetector.js';
+import { ConversationMemory } from './conversationMemory.js';
 
 export class CodeAgent {
   private contextAnalyzer: ContextAnalyzer;
   private diffGenerator: DiffGenerator;
+  private astAnalyzer: ASTAnalyzer;
+  private symbolResolver: SymbolResolver;
+  private changeDetector: ChangeDetector;
+  private conversationMemory: ConversationMemory;
   private apiKey: string;
   private model: string;
 
@@ -13,6 +21,10 @@ export class CodeAgent {
     this.model = model;
     this.contextAnalyzer = new ContextAnalyzer();
     this.diffGenerator = new DiffGenerator();
+    this.astAnalyzer = new ASTAnalyzer();
+    this.symbolResolver = new SymbolResolver();
+    this.changeDetector = new ChangeDetector();
+    this.conversationMemory = new ConversationMemory();
   }
 
   async *generate(request: GenerationRequest): AsyncGenerator<StreamChunk> {

@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import agentRoutes from './routes/agent.js';
+import advancedRoutes from './routes/advanced.js';
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/agent', agentRoutes);
+app.use('/api/advanced', advancedRoutes);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
@@ -33,6 +35,15 @@ app.listen(PORT, () => {
   console.log(`✓ Agent backend running on port ${PORT}`);
   console.log(`✓ Health check: http://localhost:${PORT}/health`);
   console.log(`✓ Agent API: http://localhost:${PORT}/api/agent`);
+  console.log(`✓ Advanced API: http://localhost:${PORT}/api/advanced`);
+  console.log('\nFeatures:');
+  console.log('  - Context-aware code generation');
+  console.log('  - AST analysis & symbol resolution');
+  console.log('  - Multi-file refactoring');
+  console.log('  - Code search & navigation');
+  console.log('  - Change detection & impact analysis');
+  console.log('  - Conversation memory & learning');
+  console.log('  - Terminal command execution');
 });
 
 export default app;
