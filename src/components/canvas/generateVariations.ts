@@ -868,6 +868,7 @@ export async function generateFullPageWithAI(
   modelId: string,
   language?: string
 ): Promise<UIVariation> {
+  console.log('[AI Generation] Starting with model:', modelId, 'platform:', platform);
   try {
     const result = await runCodeAgent({
       title,
@@ -878,6 +879,7 @@ export async function generateFullPageWithAI(
       modelId,
     });
 
+    console.log('[AI Generation] Success! Files:', result.files.length);
     return {
       id: `ai-var-${++variationCounter}-${Date.now()}`,
       label: result.label,
@@ -888,7 +890,7 @@ export async function generateFullPageWithAI(
       files: result.files,
     };
   } catch (error) {
-    console.error('Error in AI code generation:', error);
+    console.error('[AI Generation] FAILED, falling back to static:', error);
     const staticVars = generateFullPageVariations(title, description, platform as any);
     return { ...staticVars[0], id: `fallback-${Date.now()}` };
   }

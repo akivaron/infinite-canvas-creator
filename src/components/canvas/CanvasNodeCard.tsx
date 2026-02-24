@@ -9,6 +9,7 @@ import {
   Cpu, CreditCard, Key
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
+import { toast } from 'sonner';
 import { generateFullPageVariations, getRandomVariation, generateSubSections, generateFullPageWithAI, generateSubSectionsWithAI } from './generateVariations';
 import { findFreePosition } from '@/lib/layout';
 import { saveGeneratedFiles } from '@/lib/agents/fileStore';
@@ -146,15 +147,27 @@ export const CanvasNodeCard = ({ node }: Props) => {
       const useAI = Boolean(openRouterKey);
       const lang = language || node.language;
 
+      console.log('[Generate] useAI:', useAI, 'apiKey:', openRouterKey ? 'SET' : 'NOT SET', 'model:', effectiveModel);
+
       try {
         let variations;
         if (useAI) {
+          console.log('[Generate] Using AI generation with model:', effectiveModel);
+          toast.info(`Generating with AI (${effectiveModel.split('/').pop()})...`, { duration: 3000 });
           const promises = Array.from({ length: variationCount }).map(() =>
             generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, effectiveModel, lang)
           );
           variations = await Promise.all(promises);
+          console.log('[Generate] AI generation complete, variations:', variations.length);
+          const hasAiContent = variations.some(v => v.id.startsWith('ai-var-'));
+          if (hasAiContent) {
+            toast.success('AI generation complete!', { duration: 2000 });
+          } else {
+            toast.warning('AI failed, used fallback templates', { duration: 3000 });
+          }
         } else {
-          // Add a small delay for simulated "static" generation to feel better
+          console.log('[Generate] Using STATIC generation (no API key)');
+          toast.info('Using static templates (add API key in Settings for AI)', { duration: 3000 });
           await new Promise(r => setTimeout(r, 1200));
           variations = generateFullPageVariations(node.title, node.description, platform).slice(0, variationCount);
         }
@@ -241,9 +254,12 @@ export const CanvasNodeCard = ({ node }: Props) => {
       try {
         let variation;
         if (useAI) {
+          toast.info(`Regenerating with AI...`, { duration: 2000 });
           variation = await generateFullPageWithAI(node.title, node.description, node.platform!, openRouterKey!, effectiveModel, node.language);
+          if (variation.id.startsWith('ai-var-')) {
+            toast.success('Regeneration complete!', { duration: 2000 });
+          }
         } else {
-          // Find parent idea node to get original title
           const parentNode = node.parentId
             ? useCanvasStore.getState().nodes.find(n => n.id === node.parentId)
             : null;
@@ -253,7 +269,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
           await new Promise(r => setTimeout(r, 1000));
           variation = getRandomVariation(ideaTitle, ideaDesc, node.platform!, node.generatedCode);
         }
-        
+
         updateNode(node.id, {
           status: 'ready',
           title: variation.label,
@@ -268,6 +284,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         }
       } catch (error) {
         console.error('Regeneration failed:', error);
+        toast.error('Regeneration failed', { duration: 3000 });
         updateNode(node.id, { status: 'ready' });
       }
     },
@@ -290,8 +307,11 @@ export const CanvasNodeCard = ({ node }: Props) => {
       try {
         let subSections;
         if (useAI) {
+          toast.info(`Generating sections with AI...`, { duration: 2000 });
           subSections = await generateSubSectionsWithAI(node.title, node.platform || 'web', subUiPrompt, openRouterKey!, effectiveModel, variationCount);
+          toast.success('Sections generated!', { duration: 2000 });
         } else {
+          toast.info('Using static templates', { duration: 2000 });
           await new Promise(r => setTimeout(r, 1200));
           subSections = generateSubSections(node.title, node.platform || 'web', subUiPrompt).slice(0, variationCount);
         }
