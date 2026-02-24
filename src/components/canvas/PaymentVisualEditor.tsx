@@ -111,12 +111,20 @@ function generatePaymentPreviewHtml(config: PaymentConfig, title: string): strin
       <ul class="plan-features">
         ${plan.features.map(f => `<li><span class="check">✓</span> ${f}</li>`).join('')}
       </ul>
-      <button class="plan-button">${plan.price === 0 ? 'Get Started' : 'Purchase Plan'}</button>
+      <button
+        class="plan-button"
+        onclick="handlePayment('${plan.id}', ${plan.price}, '${plan.currency}', '${plan.name}')"
+        ${plan.price === 0 ? 'disabled' : ''}
+      >
+        ${plan.price === 0 ? 'Get Started' : 'Purchase Plan'}
+      </button>
       <div class="plan-type">${plan.systemType}</div>
     </div>
   `).join('');
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family: 'Inter', sans-serif; background:#0a0a0f; color:#e2e8f0; padding:40px 24px; }
     .container { max-width: 1000px; margin: 0 auto; text-align: center; }
@@ -139,10 +147,18 @@ function generatePaymentPreviewHtml(config: PaymentConfig, title: string): strin
     .plan-button { width: 100%; padding: 14px; border-radius: 12px; border: none; font-weight: 800; font-size: 14px; cursor: pointer; transition: opacity 0.2s; background: #6366f1; color: #fff; margin-bottom: 16px; }
     .plan.popular .plan-button { background: #6366f1; }
     .plan:not(.popular) .plan-button { background: #334155; }
-    .plan-button:hover { opacity: 0.9; }
+    .plan-button:hover:not(:disabled) { opacity: 0.9; }
+    .plan-button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .plan-button.processing { opacity: 0.7; cursor: wait; }
     .plan-type { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #475569; text-align: center; }
     .provider-info { margin-top: 64px; color: #475569; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; }
+    .payment-status { position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 12px; font-weight: 700; font-size: 14px; z-index: 1000; animation: slideIn 0.3s ease; }
+    .payment-status.success { background: #10b981; color: white; }
+    .payment-status.error { background: #ef4444; color: white; }
+    .payment-status.processing { background: #6366f1; color: white; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   </style></head><body>
+    <div id="status-container"></div>
     <div class="container">
       <h1>${title}</h1>
       <p class="subtitle">Choose the perfect plan for your needs</p>
@@ -151,6 +167,72 @@ function generatePaymentPreviewHtml(config: PaymentConfig, title: string): strin
       </div>
       <div class="provider-info">Powered by ${config.provider}</div>
     </div>
+    <script>
+      const SUPABASE_URL = '${typeof window !== 'undefined' && 'VITE_SUPABASE_URL' in import.meta.env ? import.meta.env.VITE_SUPABASE_URL : ''}';
+      const SUPABASE_ANON_KEY = '${typeof window !== 'undefined' && 'VITE_SUPABASE_ANON_KEY' in import.meta.env ? import.meta.env.VITE_SUPABASE_ANON_KEY : ''}';
+
+      function showStatus(message, type) {
+        const container = document.getElementById('status-container');
+        const status = document.createElement('div');
+        status.className = 'payment-status ' + type;
+        status.textContent = message;
+        container.appendChild(status);
+        setTimeout(() => status.remove(), 5000);
+      }
+
+      async function handlePayment(planId, amount, currency, planName) {
+        const button = event.target;
+        button.classList.add('processing');
+        button.textContent = 'Processing...';
+
+        try {
+          showStatus('Initializing payment...', 'processing');
+
+          const response = await fetch(SUPABASE_URL + '/functions/v1/create-payment-intent', {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              amount: amount * 100,
+              currency: currency.toLowerCase(),
+              description: planName,
+              metadata: { plan_id: planId, plan_name: planName }
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to create payment intent');
+          }
+
+          const { clientSecret } = await response.json();
+
+          const stripe = Stripe('pk_test_YOUR_PUBLISHABLE_KEY');
+
+          const { error } = await stripe.confirmCardPayment(clientSecret, {
+            payment_method: {
+              card: {
+                token: 'tok_visa',
+              },
+            },
+          });
+
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          showStatus('Payment successful!', 'success');
+          button.textContent = 'Purchase Successful!';
+        } catch (error) {
+          console.error('Payment error:', error);
+          showStatus(error.message || 'Payment failed', 'error');
+          button.classList.remove('processing');
+          button.textContent = 'Purchase Plan';
+        }
+      }
+    </script>
   </body></html>`;
 }
 
