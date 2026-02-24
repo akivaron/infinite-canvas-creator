@@ -1,8 +1,11 @@
-import { generateOpenRouterCompletion } from '@/lib/openrouter';
+import { generateOpenRouterCompletion, type ProgressCallback } from '@/lib/openrouter';
 import { getSystemPrompt } from './prompts';
 import type { AgentContext, AgentResult, GeneratedFile } from './types';
 
-export async function runCodeAgent(ctx: AgentContext): Promise<AgentResult> {
+export async function runCodeAgent(
+  ctx: AgentContext,
+  onProgress?: ProgressCallback
+): Promise<AgentResult> {
   const systemPrompt = getSystemPrompt(ctx.platform, ctx.language);
 
   const userPrompt = `Create a ${ctx.platform} project called "${ctx.title}".
@@ -15,8 +18,11 @@ Generate a unique, creative, production-quality variation. Make the design beaut
     ctx.apiKey,
     ctx.modelId,
     userPrompt,
-    systemPrompt
+    systemPrompt,
+    onProgress
   );
+
+  onProgress?.('finalizing', 'Building preview...', 'Almost done');
 
   return parseAgentResponse(response, ctx);
 }

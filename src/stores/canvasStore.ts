@@ -14,6 +14,12 @@ export interface GeneratedFileEntry {
   language: string;
 }
 
+export interface GenerationProgress {
+  phase: 'thinking' | 'generating' | 'parsing' | 'finalizing';
+  message: string;
+  detail?: string;
+}
+
 export interface CanvasNode {
   id: string;
   type: 'idea' | 'design' | 'code' | 'import' | 'api' | 'cli' | 'database' | 'payment' | 'env';
@@ -24,6 +30,7 @@ export interface CanvasNode {
   width: number;
   height: number;
   status: 'idle' | 'generating' | 'ready' | 'running';
+  generationProgress?: GenerationProgress;
   content?: string;
   fileName?: string;
   generatedCode?: string;

@@ -28,13 +28,20 @@ export async function fetchOpenRouterModels(): Promise<{ id: string; name: strin
   }
 }
 
+export interface ProgressCallback {
+  (phase: 'thinking' | 'generating' | 'parsing' | 'finalizing', message: string, detail?: string): void;
+}
+
 export async function generateOpenRouterCompletion(
   apiKey: string,
   model: string,
   prompt: string,
-  systemPrompt?: string
+  systemPrompt?: string,
+  onProgress?: ProgressCallback
 ): Promise<string> {
   try {
+    onProgress?.('thinking', 'Analyzing request...', model.split('/').pop());
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -45,6 +52,7 @@ export async function generateOpenRouterCompletion(
       },
       body: JSON.stringify({
         model,
+        stream: true,
         messages: [
           ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
           { role: 'user', content: prompt },
@@ -57,8 +65,51 @@ export async function generateOpenRouterCompletion(
       throw new Error(errorData.error?.message || 'Failed to generate completion');
     }
 
-    const data = await response.json();
-    return data.choices[0].message.content;
+    onProgress?.('generating', 'Generating code...', 'Receiving response');
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let fileCount = 0;
+    let lastFile = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6);
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content || '';
+          fullContent += delta;
+
+          const pathMatches = fullContent.match(/"path"\s*:\s*"([^"]+)"/g);
+          if (pathMatches && pathMatches.length > fileCount) {
+            fileCount = pathMatches.length;
+            const match = pathMatches[pathMatches.length - 1].match(/"path"\s*:\s*"([^"]+)"/);
+            if (match && match[1] !== lastFile) {
+              lastFile = match[1];
+              onProgress?.('generating', `Writing ${lastFile}...`, `${fileCount} file(s)`);
+            }
+          }
+        } catch {
+          // skip invalid JSON chunks
+        }
+      }
+    }
+
+    onProgress?.('parsing', 'Parsing response...', `${fileCount} file(s) generated`);
+
+    return fullContent;
   } catch (error) {
     console.error('Error generating OpenRouter completion:', error);
     throw error;

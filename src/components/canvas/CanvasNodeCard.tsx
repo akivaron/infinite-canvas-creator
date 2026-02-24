@@ -8,7 +8,7 @@ import {
   Smartphone, Globe, ArrowRight, Layers, Pencil, Server, MonitorDot, Terminal, Database, Code2, Link2,
   Cpu, CreditCard, Key
 } from 'lucide-react';
-import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
+import { useCanvasStore, type CanvasNode, type GenerationProgress } from '@/stores/canvasStore';
 import { toast } from 'sonner';
 import { generateFullPageVariations, getRandomVariation, generateSubSections, generateFullPageWithAI, generateSubSectionsWithAI } from './generateVariations';
 import { findFreePosition } from '@/lib/layout';
@@ -139,7 +139,12 @@ export const CanvasNodeCard = ({ node }: Props) => {
   const handleGenerate = useCallback(
     async (platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database', language?: string) => {
       setShowPlatformPicker(false);
-      updateNode(node.id, { status: 'generating', platform, ...(language ? { language } : {}) });
+      updateNode(node.id, {
+        status: 'generating',
+        platform,
+        generationProgress: { phase: 'thinking', message: 'Starting...' },
+        ...(language ? { language } : {})
+      });
 
       const { aiModel: globalModel, openRouterKey } = useCanvasStore.getState();
       const nodeModel = node.aiModel || globalModel;
@@ -152,14 +157,18 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
       console.log('[Generate] useAI:', useAI, 'apiKey:', openRouterKey ? 'SET' : 'NOT SET', 'model:', effectiveModel, 'autoSelected:', nodeModel === 'auto');
 
+      const onProgress = (phase: GenerationProgress['phase'], message: string, detail?: string) => {
+        updateNode(node.id, { generationProgress: { phase, message, detail } });
+      };
+
       try {
         let variations;
         if (useAI) {
           const modelName = effectiveModel.split('/').pop();
           console.log('[Generate] Using AI generation with model:', effectiveModel);
           toast.info(`Generating with ${nodeModel === 'auto' ? 'auto-selected ' : ''}${modelName}...`, { duration: 3000 });
-          const promises = Array.from({ length: variationCount }).map(() =>
-            generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, effectiveModel, lang)
+          const promises = Array.from({ length: variationCount }).map((_, i) =>
+            generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, effectiveModel, lang, i === 0 ? onProgress : undefined)
           );
           variations = await Promise.all(promises);
           console.log('[Generate] AI generation complete, variations:', variations.length);
@@ -172,11 +181,12 @@ export const CanvasNodeCard = ({ node }: Props) => {
         } else {
           console.log('[Generate] Using STATIC generation (no API key)');
           toast.info('Using static templates (add API key in Settings for AI)', { duration: 3000 });
+          onProgress('generating', 'Loading templates...');
           await new Promise(r => setTimeout(r, 1200));
           variations = generateFullPageVariations(node.title, node.description, platform).slice(0, variationCount);
         }
 
-        updateNode(node.id, { status: 'ready' });
+        updateNode(node.id, { status: 'ready', generationProgress: undefined });
         
         const nodeWidth = 420;
         const nodeHeight = 340;
@@ -247,7 +257,10 @@ export const CanvasNodeCard = ({ node }: Props) => {
     async (e: MouseEvent) => {
       e.stopPropagation();
       if (!node.platform) return;
-      updateNode(node.id, { status: 'generating' });
+      updateNode(node.id, {
+        status: 'generating',
+        generationProgress: { phase: 'thinking', message: 'Starting regeneration...' }
+      });
 
       const { aiModel: globalModel, openRouterKey } = useCanvasStore.getState();
       const nodeModel = node.aiModel || globalModel;
@@ -257,12 +270,16 @@ export const CanvasNodeCard = ({ node }: Props) => {
         ? selectOptimalModel(node.title, node.description, node.platform!, false)
         : nodeModel;
 
+      const onProgress = (phase: GenerationProgress['phase'], message: string, detail?: string) => {
+        updateNode(node.id, { generationProgress: { phase, message, detail } });
+      };
+
       try {
         let variation;
         if (useAI) {
           const modelName = effectiveModel.split('/').pop();
           toast.info(`Regenerating with ${nodeModel === 'auto' ? 'auto-selected ' : ''}${modelName}...`, { duration: 2000 });
-          variation = await generateFullPageWithAI(node.title, node.description, node.platform!, openRouterKey!, effectiveModel, node.language);
+          variation = await generateFullPageWithAI(node.title, node.description, node.platform!, openRouterKey!, effectiveModel, node.language, onProgress);
           if (variation.id.startsWith('ai-var-')) {
             toast.success('Regeneration complete!', { duration: 2000 });
           }
@@ -273,12 +290,14 @@ export const CanvasNodeCard = ({ node }: Props) => {
           const ideaTitle = parentNode?.title || node.title;
           const ideaDesc = parentNode?.description || node.description;
 
+          onProgress('generating', 'Loading template...');
           await new Promise(r => setTimeout(r, 1000));
           variation = getRandomVariation(ideaTitle, ideaDesc, node.platform!, node.generatedCode);
         }
 
         updateNode(node.id, {
           status: 'ready',
+          generationProgress: undefined,
           title: variation.label,
           description: variation.description,
           content: variation.previewHtml,
@@ -303,7 +322,10 @@ export const CanvasNodeCard = ({ node }: Props) => {
     async (e: MouseEvent) => {
       e.stopPropagation();
       setShowNextMenu(false);
-      updateNode(node.id, { status: 'generating' });
+      updateNode(node.id, {
+        status: 'generating',
+        generationProgress: { phase: 'thinking', message: 'Preparing sections...' }
+      });
 
       const { aiModel: globalModel, openRouterKey } = useCanvasStore.getState();
       const nodeModel = node.aiModel || globalModel;
@@ -314,20 +336,26 @@ export const CanvasNodeCard = ({ node }: Props) => {
         ? selectOptimalModel(node.title, subUiPrompt, platform, true)
         : nodeModel;
 
+      const onProgress = (phase: GenerationProgress['phase'], message: string, detail?: string) => {
+        updateNode(node.id, { generationProgress: { phase, message, detail } });
+      };
+
       try {
         let subSections;
         if (useAI) {
           const modelName = effectiveModel.split('/').pop();
           toast.info(`Generating sections with ${nodeModel === 'auto' ? 'auto-selected ' : ''}${modelName}...`, { duration: 2000 });
+          onProgress('generating', 'Generating sections...', modelName);
           subSections = await generateSubSectionsWithAI(node.title, platform, subUiPrompt, openRouterKey!, effectiveModel, variationCount);
           toast.success('Sections generated!', { duration: 2000 });
         } else {
           toast.info('Using static templates', { duration: 2000 });
+          onProgress('generating', 'Loading templates...');
           await new Promise(r => setTimeout(r, 1200));
           subSections = generateSubSections(node.title, platform, subUiPrompt).slice(0, variationCount);
         }
 
-        updateNode(node.id, { status: 'ready' });
+        updateNode(node.id, { status: 'ready', generationProgress: undefined });
         
         const nodeWidth = 380;
         const nodeHeight = 260;
@@ -843,7 +871,10 @@ export const CanvasNodeCard = ({ node }: Props) => {
                 {/* Loading states */}
                 {node.status === 'generating' && (
                   <div className="brand-button flex-1 flex items-center justify-center gap-2 !py-3 opacity-60 pointer-events-none">
-                    <div className="w-3 h-3 border-2 border-background border-t-transparent rounded-full animate-spin" /> Generating...
+                    <div className="w-3 h-3 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                    <span className="truncate max-w-[120px]">
+                      {node.generationProgress?.message || 'Generating...'}
+                    </span>
                   </div>
                 )}
                 {node.status === 'running' && (
@@ -949,6 +980,33 @@ export const CanvasNodeCard = ({ node }: Props) => {
         <CodeEditor node={node} onClose={() => setShowCodeEditor(false)} />,
         document.body
       )}
+
+      {/* Generation Progress Indicator */}
+      <AnimatePresence>
+        {node.status === 'generating' && node.generationProgress && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="absolute -bottom-12 left-0 right-0 flex items-center justify-center"
+          >
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background/95 backdrop-blur border border-border shadow-lg">
+              <div className="relative w-3 h-3">
+                <div className="absolute inset-0 rounded-full border-2 border-primary/30" />
+                <div className="absolute inset-0 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              </div>
+              <span className="text-xs font-medium text-foreground">
+                {node.generationProgress.message}
+              </span>
+              {node.generationProgress.detail && (
+                <span className="text-xs text-muted-foreground">
+                  ({node.generationProgress.detail})
+                </span>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

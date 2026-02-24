@@ -1,5 +1,5 @@
 import { type UIVariation } from '@/stores/canvasStore';
-import { generateOpenRouterCompletion } from '@/lib/openrouter';
+import { generateOpenRouterCompletion, type ProgressCallback } from '@/lib/openrouter';
 import { runCodeAgent } from '@/lib/agents/codeAgent';
 import type { Platform } from '@/lib/agents/types';
 import {
@@ -866,7 +866,8 @@ export async function generateFullPageWithAI(
   platform: string,
   apiKey: string,
   modelId: string,
-  language?: string
+  language?: string,
+  onProgress?: ProgressCallback
 ): Promise<UIVariation> {
   console.log('[AI Generation] Starting with model:', modelId, 'platform:', platform);
   try {
@@ -877,7 +878,7 @@ export async function generateFullPageWithAI(
       language,
       apiKey,
       modelId,
-    });
+    }, onProgress);
 
     console.log('[AI Generation] Success! Files:', result.files.length);
     return {
