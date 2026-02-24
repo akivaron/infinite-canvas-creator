@@ -145,14 +145,32 @@ let stepCounter = 0;
 const newStepId = () => `step-${++stepCounter}-${Date.now()}`;
 
 /* ─── Parse steps from node content ─── */
-function parseSteps(content?: string): CliStep[] {
-  if (!content) return [];
-  try {
-    const parsed = JSON.parse(content);
-    if (Array.isArray(parsed)) return parsed;
-  } catch (e) {
-    // Not valid JSON
+function parseSteps(node: CanvasNode): CliStep[] {
+  if (node.generatedFiles && node.generatedFiles.length > 0) {
+    const stepsFile = node.generatedFiles.find(f => f.path === 'cli-steps.json');
+    if (stepsFile) {
+      try {
+        const parsed = JSON.parse(stepsFile.content);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
   }
+
+  if (node.generatedCode) {
+    const stepsMatch = node.generatedCode.match(/\/\/ === cli-steps\.json ===\n([\s\S]*?)(?=\n\n\/\/ ===|$)/);
+    if (stepsMatch) {
+      try {
+        const parsed = JSON.parse(stepsMatch[1]);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+
+    try {
+      const parsed = JSON.parse(node.generatedCode);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+
   return [];
 }
 
@@ -270,7 +288,7 @@ export const CliVisualEditor = ({ node, onClose }: Props) => {
     .reduce((acc, n) => ({ ...acc, ...(n.envVars || {}) }), {} as Record<string, string>);
 
   const [steps, setSteps] = useState<CliStep[]>(() => {
-    const parsed = parseSteps(node.generatedCode);
+    const parsed = parseSteps(node);
     return parsed.length > 0 ? parsed : [];
   });
   const [selectedStepId, setSelectedStepId] = useState<string | null>(steps[0]?.id || null);

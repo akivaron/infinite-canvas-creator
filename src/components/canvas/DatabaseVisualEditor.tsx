@@ -539,14 +539,32 @@ const dbElements: DbElement[] = [
 ];
 
 /* ─── Parse/Generate ─── */
-function parseSchema(content?: string): { tables: DbTable[]; relations: DbRelation[]; engine?: DbEngine } {
-  if (!content) return { tables: [], relations: [] };
-  try {
-    const parsed = JSON.parse(content);
-    if (parsed.tables) return parsed;
-  } catch (e) {
-    // Not valid JSON
+function parseSchema(node: CanvasNode): { tables: DbTable[]; relations: DbRelation[]; engine?: DbEngine } {
+  if (node.generatedFiles && node.generatedFiles.length > 0) {
+    const schemaFile = node.generatedFiles.find(f => f.path === 'schema.json');
+    if (schemaFile) {
+      try {
+        const parsed = JSON.parse(schemaFile.content);
+        if (parsed.tables) return parsed;
+      } catch {}
+    }
   }
+
+  if (node.generatedCode) {
+    const schemaMatch = node.generatedCode.match(/\/\/ === schema\.json ===\n([\s\S]*?)(?=\n\n\/\/ ===|$)/);
+    if (schemaMatch) {
+      try {
+        const parsed = JSON.parse(schemaMatch[1]);
+        if (parsed.tables) return parsed;
+      } catch {}
+    }
+
+    try {
+      const parsed = JSON.parse(node.generatedCode);
+      if (parsed.tables) return parsed;
+    } catch {}
+  }
+
   return { tables: [], relations: [] };
 }
 
@@ -581,11 +599,11 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
     .reduce((acc, n) => ({ ...acc, ...(n.envVars || {}) }), {} as Record<string, string>);
 
   const [dbEngine, setDbEngine] = useState<DbEngine>(() => {
-    const parsed = parseSchema(node.generatedCode);
+    const parsed = parseSchema(node);
     return parsed.engine || 'sql';
   });
   const [schema, setSchema] = useState(() => {
-    const parsed = parseSchema(node.generatedCode);
+    const parsed = parseSchema(node);
     return parsed.tables.length > 0 ? parsed : { tables: [] as DbTable[], relations: [] as DbRelation[] };
   });
   const [selectedTableId, setSelectedTableId] = useState<string | null>(schema.tables[0]?.id || null);

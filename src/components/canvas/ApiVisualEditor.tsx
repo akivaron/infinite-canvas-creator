@@ -154,14 +154,32 @@ const defaultEndpoint = (): ApiEndpoint => ({
 });
 
 /* ─── Parse endpoints from node content ─── */
-function parseEndpoints(content?: string): ApiEndpoint[] {
-  if (!content) return [];
-  try {
-    const parsed = JSON.parse(content);
-    if (Array.isArray(parsed)) return parsed;
-  } catch (e) {
-    // Invalid JSON or not an array
+function parseEndpoints(node: CanvasNode): ApiEndpoint[] {
+  if (node.generatedFiles && node.generatedFiles.length > 0) {
+    const specFile = node.generatedFiles.find(f => f.path === 'api-spec.json');
+    if (specFile) {
+      try {
+        const parsed = JSON.parse(specFile.content);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
   }
+
+  if (node.generatedCode) {
+    const specMatch = node.generatedCode.match(/\/\/ === api-spec\.json ===\n([\s\S]*?)(?=\n\n\/\/ ===|$)/);
+    if (specMatch) {
+      try {
+        const parsed = JSON.parse(specMatch[1]);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+
+    try {
+      const parsed = JSON.parse(node.generatedCode);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+
   return [];
 }
 
@@ -237,7 +255,7 @@ export const ApiVisualEditor = ({ node, onClose }: Props) => {
     .reduce((acc, n) => ({ ...acc, ...(n.envVars || {}) }), {} as Record<string, string>);
 
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>(() => {
-    const parsed = parseEndpoints(node.generatedCode);
+    const parsed = parseEndpoints(node);
     return parsed.length > 0 ? parsed : [defaultEndpoint()];
   });
   const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(endpoints[0]?.id || null);
