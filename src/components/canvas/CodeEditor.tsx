@@ -6,7 +6,8 @@ import {
   Globe, Smartphone, MonitorDot, Copy, Download, PanelLeft, FileJson,
   FileText, FileCog, File, FolderPlus, Edit3, Check
 } from 'lucide-react';
-import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
+import { useCanvasStore, type CanvasNode, type GeneratedFileEntry } from '@/stores/canvasStore';
+import { saveGeneratedFiles, updateGeneratedFile } from '@/lib/agents/fileStore';
 
 /* ── Types ── */
 interface FileNode {
@@ -69,6 +70,40 @@ const getLangFromName = (name: string): string => {
   if (name.endsWith('.env')) return 'env';
   return 'text';
 };
+
+/* ── Convert GeneratedFileEntry[] to FileNode[] tree ── */
+function buildTreeFromFiles(files: GeneratedFileEntry[]): FileNode[] {
+  const root: FileNode[] = [];
+
+  for (const file of files) {
+    const parts = file.path.split('/');
+    let current = root;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isLast = i === parts.length - 1;
+
+      if (isLast) {
+        current.push({
+          id: uid(),
+          name: part,
+          type: 'file',
+          content: file.content,
+          language: file.language || getLangFromName(part),
+        });
+      } else {
+        let folder = current.find(n => n.type === 'folder' && n.name === part);
+        if (!folder) {
+          folder = { id: uid(), name: part, type: 'folder', children: [] };
+          current.push(folder);
+        }
+        current = folder.children!;
+      }
+    }
+  }
+
+  return root;
+}
 
 /* ── Default file trees per platform ── */
 const getDefaultTree = (platform: string, title: string): FileNode[] => {
@@ -350,7 +385,12 @@ export const CodeEditor = ({ node, onClose }: Props) => {
   const { updateNode } = useCanvasStore();
   const platform = node.platform || (node.type === 'api' ? 'api' : node.type === 'cli' ? 'cli' : node.type === 'database' ? 'database' : 'web');
 
-  const [tree, setTree] = useState<FileNode[]>(() => getDefaultTree(platform, node.title));
+  const [tree, setTree] = useState<FileNode[]>(() => {
+    if (node.generatedFiles && node.generatedFiles.length > 0) {
+      return buildTreeFromFiles(node.generatedFiles);
+    }
+    return getDefaultTree(platform, node.title);
+  });
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [openTabs, setOpenTabs] = useState<{ id: string; name: string }[]>([]);
   const [showTree, setShowTree] = useState(true);
@@ -483,7 +523,6 @@ export const CodeEditor = ({ node, onClose }: Props) => {
 
   /* ── Save ── */
   const handleSave = useCallback(() => {
-    // Collect all file contents as a combined string for the node
     const collectCode = (nodes: FileNode[], prefix = ''): string => {
       let result = '';
       for (const n of nodes) {
@@ -495,9 +534,27 @@ export const CodeEditor = ({ node, onClose }: Props) => {
       }
       return result;
     };
+
+    const collectFiles = (nodes: FileNode[], prefix = ''): GeneratedFileEntry[] => {
+      const files: GeneratedFileEntry[] = [];
+      for (const n of nodes) {
+        const path = prefix ? `${prefix}/${n.name}` : n.name;
+        if (n.type === 'file') {
+          files.push({ path, content: n.content || '', language: n.language || 'text' });
+        }
+        if (n.children) files.push(...collectFiles(n.children, path));
+      }
+      return files;
+    };
+
     const code = collectCode(tree);
-    updateNode(node.id, { generatedCode: code });
-  }, [tree, node.id, updateNode]);
+    const files = collectFiles(tree);
+    updateNode(node.id, { generatedCode: code, generatedFiles: files });
+
+    if (files.length > 0) {
+      saveGeneratedFiles(node.id, platform, files).catch(console.error);
+    }
+  }, [tree, node.id, platform, updateNode]);
 
   /* ── Search files ── */
   const flatFiles = useCallback((nodes: FileNode[], prefix = ''): { id: string; path: string; name: string }[] => {

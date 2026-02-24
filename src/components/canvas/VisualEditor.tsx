@@ -480,10 +480,19 @@ export const VisualEditor = ({ node, onClose }: Props) => {
       iframeRef.current?.contentWindow?.postMessage({ type: 'getContent' }, '*');
       const handler = (e: MessageEvent) => {
         if (e.data.type === 'content') {
+          const html = e.data.html;
+          const updatedFiles = node.generatedFiles ? node.generatedFiles.map(f => {
+            if (f.path === 'index.html' || f.path === 'public/index.html') {
+              return { ...f, content: html };
+            }
+            return f;
+          }) : undefined;
+
           updateNode(node.id, {
-            content: e.data.html,
-            generatedCode: e.data.html,
+            content: html,
+            generatedCode: html,
             elementLinks,
+            ...(updatedFiles ? { generatedFiles: updatedFiles } : {}),
           });
           setIsDirty(false);
           window.removeEventListener('message', handler);
@@ -492,7 +501,7 @@ export const VisualEditor = ({ node, onClose }: Props) => {
       };
       window.addEventListener('message', handler);
     });
-  }, [node.id, updateNode, elementLinks]);
+  }, [node.id, node.generatedFiles, updateNode, elementLinks]);
 
   const handleSave = useCallback(() => {
     saveToNode();

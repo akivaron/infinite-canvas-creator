@@ -42,6 +42,14 @@ export interface CanvasNode {
   envVars?: Record<string, string>;
   /** specific AI model for this node */
   aiModel?: string;
+  /** generated file tree for this node */
+  generatedFiles?: GeneratedFileEntry[];
+}
+
+export interface GeneratedFileEntry {
+  path: string;
+  content: string;
+  language: string;
 }
 
 export interface UIVariation {
@@ -51,6 +59,7 @@ export interface UIVariation {
   previewHtml: string;
   code: string;
   category: 'header' | 'hero' | 'features' | 'pricing' | 'footer' | 'dashboard' | 'mobile';
+  files?: GeneratedFileEntry[];
 }
 
 interface CanvasState {

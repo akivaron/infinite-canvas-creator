@@ -1,5 +1,11 @@
 import { type UIVariation } from '@/stores/canvasStore';
 import { generateOpenRouterCompletion } from '@/lib/openrouter';
+import { runCodeAgent } from '@/lib/agents/codeAgent';
+import type { Platform } from '@/lib/agents/types';
+import {
+  getStaticWebFiles, getStaticMobileFiles, getStaticApiFiles,
+  getStaticDesktopFiles, getStaticCliFiles, getStaticDatabaseFiles,
+} from '@/lib/agents/staticFiles';
 
 let variationCounter = 0;
 
@@ -770,53 +776,75 @@ export function generateFullPageVariations(
   platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database'
 ): UIVariation[] {
   const desc = description || 'A beautifully crafted solution built with modern design principles.';
+
+  const attachFiles = (variations: UIVariation[]): UIVariation[] => {
+    const fileGetter = getStaticFilesForPlatform(title, platform);
+    return variations.map(v => ({ ...v, files: v.files || fileGetter(v) }));
+  };
+
   if (platform === 'web') {
-    return [
+    return attachFiles([
       webLandingVariation1(title, desc),
       webLandingVariation2(title, desc),
       webLandingVariation3(title, desc),
       webLandingVariation4(title, desc),
-    ];
+    ]);
   }
   if (platform === 'mobile') {
-    return [
+    return attachFiles([
       mobileLandingVariation1(title, desc),
       mobileLandingVariation2(title, desc),
       mobileLandingVariation3(title, desc),
       mobileLandingVariation4(title, desc),
-    ];
+    ]);
   }
   if (platform === 'api') {
-    return [
+    return attachFiles([
       apiVariation1(title, desc),
       apiVariation2(title, desc),
       apiVariation3(title, desc),
       apiVariation4(title, desc),
-    ];
+    ]);
   }
   if (platform === 'desktop') {
-    return [
+    return attachFiles([
       desktopVariation1(title, desc),
       desktopVariation2(title, desc),
       desktopVariation3(title, desc),
       desktopVariation4(title, desc),
-    ];
+    ]);
   }
   if (platform === 'database') {
-    return [
-      databaseVariation1(title, desc), 
+    return attachFiles([
+      databaseVariation1(title, desc),
       databaseVariation2(title, desc),
       databaseVariation3(title, desc),
       databaseVariation4(title, desc),
-    ];
+    ]);
   }
-  // cli
-  return [
+  return attachFiles([
     cliVariation1(title, desc),
     cliVariation2(title, desc),
     cliVariation3(title, desc),
     cliVariation4(title, desc),
-  ];
+  ]);
+}
+
+function getStaticFilesForPlatform(title: string, platform: string) {
+  return (variation: UIVariation) => {
+    switch (platform) {
+      case 'web': return getStaticWebFiles(title, variation.previewHtml);
+      case 'mobile': return getStaticMobileFiles(title);
+      case 'api': return getStaticApiFiles(title);
+      case 'desktop': return getStaticDesktopFiles(title);
+      case 'cli': return getStaticCliFiles(title);
+      case 'database': {
+        try { return getStaticDatabaseFiles(title, JSON.parse(variation.code)); }
+        catch { return getStaticDatabaseFiles(title, { tables: [], relations: [] }); }
+      }
+      default: return getStaticWebFiles(title, variation.previewHtml);
+    }
+  };
 }
 
 /** Get a random different variation for regeneration */
@@ -831,53 +859,36 @@ export function getRandomVariation(
   return filtered[Math.floor(Math.random() * filtered.length)] || all[0];
 }
 
-/** Generate full-page variation using AI */
+/** Generate full-page variation using AI code agent */
 export async function generateFullPageWithAI(
   title: string,
   description: string,
   platform: string,
   apiKey: string,
-  modelId: string
+  modelId: string,
+  language?: string
 ): Promise<UIVariation> {
-  const systemPrompt = `You are a world-class ${platform} designer and developer. 
-Your task is to generate a high-quality ${platform} design for a project named "${title}".
-Project Description: ${description}
-
-Return your response as a JSON object with exactly these fields:
-{
-  "label": "A short, catchy name for this variation",
-  "description": "A concise description of the design and its features",
-  "previewHtml": "Full, self-contained HTML/CSS for the design (using Tailwind-like inline styles where possible, and keeping it responsive)",
-  "code": "A brief code snippet or instructions for this design",
-  "category": "One of: header, hero, features, pricing, footer, dashboard, mobile"
-}
-
-Ensure the design is professional, modern, and high-fidelity. 
-Do not include any text outside the JSON object.`;
-
-  const prompt = `Generate a unique and beautiful ${platform} variation for "${title}". 
-Description: ${description}`;
-
   try {
-    const response = await generateOpenRouterCompletion(apiKey, modelId, prompt, systemPrompt);
-    
-    // Attempt to parse JSON from the response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('AI response did not contain valid JSON');
-    
-    const data = JSON.parse(jsonMatch[0]);
-    
+    const result = await runCodeAgent({
+      title,
+      description,
+      platform: platform as Platform,
+      language,
+      apiKey,
+      modelId,
+    });
+
     return {
       id: `ai-var-${++variationCounter}-${Date.now()}`,
-      label: data.label || `${title} — AI Design`,
-      description: data.description || 'Custom design generated by AI.',
-      previewHtml: data.previewHtml || '<div>Failed to generate preview</div>',
-      code: data.code || '// AI generated code',
-      category: data.category || (platform === 'mobile' ? 'mobile' : 'hero'),
+      label: result.label,
+      description: result.description,
+      previewHtml: result.previewHtml,
+      code: result.files.map(f => `// --- ${f.path} ---\n${f.content}`).join('\n\n'),
+      category: result.category,
+      files: result.files,
     };
   } catch (error) {
-    console.error('Error in AI generation:', error);
-    // Fallback to a static variation if AI fails
+    console.error('Error in AI code generation:', error);
     const staticVars = generateFullPageVariations(title, description, platform as any);
     return { ...staticVars[0], id: `fallback-${Date.now()}` };
   }
@@ -1013,44 +1024,44 @@ export async function generateSubSectionsWithAI(
   modelId: string,
   count: number = 3
 ): Promise<SubSection[]> {
-  const systemPrompt = `You are a world-class ${platform} designer and developer. 
-Your task is to generate ${count} smaller UI components/sections for a project named "${title}" based on the user's specific prompt: "${prompt}".
+  const systemPrompt = `You are a world-class ${platform} designer and developer.
+Generate ${count} smaller UI components/sections for a project named "${title}" based on: "${prompt}".
 
-Return your response as a JSON object with exactly this field:
+Return ONLY a JSON object:
 {
   "sections": [
     {
-      "label": "A short name for this section",
-      "description": "A concise description",
-      "previewHtml": "Full, self-contained HTML/CSS for this specific section",
-      "code": "Brief code snippet",
-      "category": "One of: header, hero, features, pricing, footer, dashboard, mobile"
-    },
-    ...
+      "label": "Short name",
+      "description": "Concise description",
+      "previewHtml": "Full self-contained HTML/CSS for this section",
+      "code": "Complete component code (React/TypeScript)",
+      "category": "One of: header, hero, features, pricing, footer, dashboard, mobile",
+      "files": [
+        { "path": "src/components/SectionName.tsx", "content": "full component code", "language": "typescriptreact" }
+      ]
+    }
   ]
 }
 
-Ensure sections are focused, modular, and beautiful. 
+Each section must have complete, working code files. No placeholders.
 Do not include any text outside the JSON object.`;
 
   const userPrompt = `Generate ${count} UI sections for "${title}" based on: ${prompt}`;
 
   try {
     const response = await generateOpenRouterCompletion(apiKey, modelId, userPrompt, systemPrompt);
-    
-    // Attempt to parse JSON from the response
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('AI response did not contain valid JSON');
-    
+
     const data = JSON.parse(jsonMatch[0]);
-    
+
     return (data.sections || []).slice(0, count).map((s: any) => ({
       ...s,
-      id: `ai-sub-${++variationCounter}-${Date.now()}`
+      id: `ai-sub-${++variationCounter}-${Date.now()}`,
+      files: s.files || [],
     }));
   } catch (error) {
     console.error('Error in Sub-UI AI generation:', error);
-    // Fallback to static generation, limited by count
     return generateSubSections(title, platform as any, prompt).slice(0, count);
   }
 }

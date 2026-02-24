@@ -11,6 +11,7 @@ import {
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { generateFullPageVariations, getRandomVariation, generateSubSections, generateFullPageWithAI, generateSubSectionsWithAI } from './generateVariations';
 import { findFreePosition } from '@/lib/layout';
+import { saveGeneratedFiles } from '@/lib/agents/fileStore';
 import { VisualEditor } from './VisualEditor';
 import { ApiVisualEditor } from './ApiVisualEditor';
 import { CliVisualEditor } from './CliVisualEditor';
@@ -145,8 +146,8 @@ export const CanvasNodeCard = ({ node }: Props) => {
       try {
         let variations;
         if (useAI) {
-          const promises = Array.from({ length: variationCount }).map(() => 
-            generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, nodeModel)
+          const promises = Array.from({ length: variationCount }).map(() =>
+            generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, nodeModel, node.language)
           );
           variations = await Promise.all(promises);
         } else {
@@ -188,7 +189,12 @@ export const CanvasNodeCard = ({ node }: Props) => {
             parentId: node.id,
             pageRole: variation.category,
             platform,
+            generatedFiles: variation.files,
           });
+
+          if (variation.files && variation.files.length > 0) {
+            saveGeneratedFiles(newId, platform, variation.files).catch(console.error);
+          }
 
           currentNodes.push({
             id: newId,
@@ -230,7 +236,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
       try {
         let variation;
         if (useAI) {
-          variation = await generateFullPageWithAI(node.title, node.description, node.platform!, openRouterKey!, nodeModel);
+          variation = await generateFullPageWithAI(node.title, node.description, node.platform!, openRouterKey!, nodeModel, node.language);
         } else {
           // Find parent idea node to get original title
           const parentNode = node.parentId
@@ -249,7 +255,12 @@ export const CanvasNodeCard = ({ node }: Props) => {
           description: variation.description,
           content: variation.previewHtml,
           generatedCode: variation.code,
+          generatedFiles: variation.files,
         });
+
+        if (variation.files && variation.files.length > 0) {
+          saveGeneratedFiles(node.id, node.platform!, variation.files).catch(console.error);
+        }
       } catch (error) {
         console.error('Regeneration failed:', error);
         updateNode(node.id, { status: 'ready' });
@@ -297,6 +308,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
             padding
           );
 
+          const sectionFiles = (section as any).files;
           const newId = addNode({
             type: node.platform === 'api' ? 'api' : node.platform === 'cli' ? 'cli' : node.platform === 'database' ? 'database' : 'design',
             title: section.label,
@@ -311,7 +323,12 @@ export const CanvasNodeCard = ({ node }: Props) => {
             parentId: node.id,
             pageRole: section.category,
             platform: node.platform,
+            generatedFiles: sectionFiles,
           });
+
+          if (sectionFiles && sectionFiles.length > 0) {
+            saveGeneratedFiles(newId, node.platform || 'web', sectionFiles).catch(console.error);
+          }
 
           currentNodes.push({
             id: newId,
