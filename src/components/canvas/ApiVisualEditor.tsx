@@ -310,9 +310,14 @@ export const ApiVisualEditor = ({ node, onClose }: Props) => {
     const code = JSON.stringify(endpoints, null, 2);
     const preview = generateApiPreviewHtml(endpoints, node.title);
 
+    const existingFiles = node.generatedFiles?.filter(f =>
+      f.path !== 'api-spec.json' && f.path !== 'index.html'
+    ) || [];
+
     const generatedFiles = [
       { path: 'api-spec.json', content: code, language: 'json' },
       { path: 'index.html', content: preview, language: 'html' },
+      ...existingFiles,
     ];
 
     const allCode = generatedFiles.map(f => `// === ${f.path} ===\n${f.content}`).join('\n\n');
@@ -323,7 +328,7 @@ export const ApiVisualEditor = ({ node, onClose }: Props) => {
       generatedFiles,
     });
     setIsDirty(false);
-  }, [endpoints, node.id, node.title, updateNode]);
+  }, [endpoints, node.id, node.title, node.generatedFiles, updateNode]);
 
   // Auto-save
   useEffect(() => {

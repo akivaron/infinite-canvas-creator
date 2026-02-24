@@ -280,8 +280,86 @@ export const AppNavigator = () => (
 
 export function getStaticApiFiles(title: string, language?: string): GeneratedFile[] {
   const lang = language || 'nodejs';
+
+  const apiSpec = JSON.stringify([
+    {
+      id: 'ep-1',
+      method: 'GET',
+      path: '/api/items',
+      summary: 'Get all items',
+      tag: 'Items',
+      headers: [],
+      queryParams: [
+        { id: 'q1', key: 'page', type: 'integer', required: false, description: 'Page number' },
+        { id: 'q2', key: 'limit', type: 'integer', required: false, description: 'Items per page' },
+      ],
+      pathParams: [],
+      requestBody: '',
+      responseBody: '{\n  "items": [],\n  "total": 0\n}',
+      statusCode: 200,
+      auth: 'none',
+    },
+    {
+      id: 'ep-2',
+      method: 'POST',
+      path: '/api/items',
+      summary: 'Create a new item',
+      tag: 'Items',
+      headers: [{ id: 'h1', key: 'Content-Type', type: 'string', required: true, description: 'application/json' }],
+      queryParams: [],
+      pathParams: [],
+      requestBody: '{\n  "name": "string",\n  "description": "string"\n}',
+      responseBody: '{\n  "id": 1,\n  "name": "string",\n  "description": "string"\n}',
+      statusCode: 201,
+      auth: 'none',
+    },
+    {
+      id: 'ep-3',
+      method: 'GET',
+      path: '/api/items/:id',
+      summary: 'Get item by ID',
+      tag: 'Items',
+      headers: [],
+      queryParams: [],
+      pathParams: [{ id: 'p1', key: 'id', type: 'integer', required: true, description: 'Item ID' }],
+      requestBody: '',
+      responseBody: '{\n  "id": 1,\n  "name": "string",\n  "description": "string"\n}',
+      statusCode: 200,
+      auth: 'none',
+    },
+    {
+      id: 'ep-4',
+      method: 'PUT',
+      path: '/api/items/:id',
+      summary: 'Update item',
+      tag: 'Items',
+      headers: [],
+      queryParams: [],
+      pathParams: [{ id: 'p1', key: 'id', type: 'integer', required: true, description: 'Item ID' }],
+      requestBody: '{\n  "name": "string",\n  "description": "string"\n}',
+      responseBody: '{\n  "id": 1,\n  "name": "string",\n  "description": "string"\n}',
+      statusCode: 200,
+      auth: 'none',
+    },
+    {
+      id: 'ep-5',
+      method: 'DELETE',
+      path: '/api/items/:id',
+      summary: 'Delete item',
+      tag: 'Items',
+      headers: [],
+      queryParams: [],
+      pathParams: [{ id: 'p1', key: 'id', type: 'integer', required: true, description: 'Item ID' }],
+      requestBody: '',
+      responseBody: '',
+      statusCode: 204,
+      auth: 'none',
+    },
+  ], null, 2);
+
   if (lang === 'python') {
     return [
+      { path: 'api-spec.json', content: apiSpec, language: 'json' },
       { path: 'main.py', content: `from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -320,6 +398,7 @@ if __name__ == "__main__":
     ];
   }
   return [
+    { path: 'api-spec.json', content: apiSpec, language: 'json' },
     { path: 'src/index.ts', content: `import express from 'express';
 import { router } from './routes';
 import { errorHandler } from './middleware/errorHandler';
@@ -500,7 +579,19 @@ export const MainContent = ({ view }: { view: string }) => (
 
 export function getStaticCliFiles(title: string): GeneratedFile[] {
   const binName = title.toLowerCase().replace(/\s+/g, '-');
+
+  const cliSteps = JSON.stringify([
+    { id: 'step-1', kind: 'flag', label: 'Project name flag', config: { name: '--name', short: '-n', description: 'Project name', type: 'string' } },
+    { id: 'step-2', kind: 'flag', label: 'Port flag', config: { name: '--port', short: '-p', description: 'Port number', type: 'string' } },
+    { id: 'step-3', kind: 'variable', label: 'Set default name', config: { name: 'projectName', value: 'opts.name || "my-project"' } },
+    { id: 'step-4', kind: 'output', label: 'Show init message', config: { message: 'Initializing project...', style: 'info' } },
+    { id: 'step-5', kind: 'spinner', label: 'Loading spinner', config: { message: 'Creating project files...', success: 'Project created!' } },
+    { id: 'step-6', kind: 'output', label: 'Success message', config: { message: 'Project initialized successfully!', style: 'success' } },
+    { id: 'step-7', kind: 'command', label: 'Run serve', config: { cmd: `echo "Server running on port $PORT"` } },
+  ], null, 2);
+
   return [
+    { path: 'cli-steps.json', content: cliSteps, language: 'json' },
     { path: 'src/index.ts', content: `#!/usr/bin/env node
 import { Command } from 'commander';
 import { initCommand } from './commands/init';
@@ -603,6 +694,11 @@ export function saveConfig(config: Record<string, any>): void {
 
 export function getStaticDatabaseFiles(title: string, schema: any): GeneratedFile[] {
   const tables = schema?.tables || [];
+  const relations = schema?.relations || [];
+  const engine = schema?.engine || 'sql';
+
+  const schemaJson = JSON.stringify({ engine, tables, relations }, null, 2);
+
   const createStatements = tables.map((t: any) => {
     const cols = (t.columns || []).map((c: any) => {
       let def = `  ${c.name} ${c.type}`;
@@ -616,6 +712,7 @@ export function getStaticDatabaseFiles(title: string, schema: any): GeneratedFil
   }).join('\n\n');
 
   return [
+    { path: 'schema.json', content: schemaJson, language: 'json' },
     { path: 'migrations/001_create_tables.sql', content: `-- ${title} Database Schema\n\n${createStatements}\n`, language: 'sql' },
     { path: 'src/schema.ts', content: `// TypeScript types for ${title} schema\n\n${tables.map((t: any) => {
       const fields = (t.columns || []).map((c: any) => `  ${c.name}: ${sqlToTs(c.type)};`).join('\n');

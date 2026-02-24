@@ -625,21 +625,22 @@ function cliVariation4(title: string, desc: string): UIVariation {
 
 function databaseVariation1(title: string, desc: string): UIVariation {
   const schema = {
+    engine: 'sql',
     tables: [
-      { id: 'tbl-1', name: 'users', color: '#6366f1', x: 50, y: 50, columns: [
+      { id: 'tbl-1', name: 'users', color: '#6366f1', x: 50, y: 50, kind: 'table', columns: [
         { id: 'c1', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
         { id: 'c2', name: 'email', type: 'varchar', isPrimary: false, isNullable: false, isUnique: true, defaultValue: '' },
         { id: 'c3', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
         { id: 'c4', name: 'created_at', type: 'timestamptz', isPrimary: false, isNullable: false, isUnique: false, defaultValue: 'now()' },
       ] },
-      { id: 'tbl-2', name: 'posts', color: '#ec4899', x: 350, y: 50, columns: [
+      { id: 'tbl-2', name: 'posts', color: '#ec4899', x: 350, y: 50, kind: 'table', columns: [
         { id: 'c5', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
         { id: 'c6', name: 'title', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
         { id: 'c7', name: 'content', type: 'text', isPrimary: false, isNullable: true, isUnique: false, defaultValue: '' },
         { id: 'c8', name: 'author_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
         { id: 'c9', name: 'created_at', type: 'timestamptz', isPrimary: false, isNullable: false, isUnique: false, defaultValue: 'now()' },
       ] },
-      { id: 'tbl-3', name: 'comments', color: '#06b6d4', x: 350, y: 280, columns: [
+      { id: 'tbl-3', name: 'comments', color: '#06b6d4', x: 350, y: 280, kind: 'table', columns: [
         { id: 'c10', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
         { id: 'c11', name: 'body', type: 'text', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
         { id: 'c12', name: 'post_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-2', columnId: 'c5' } },
@@ -665,25 +666,26 @@ function databaseVariation1(title: string, desc: string): UIVariation {
 
 function databaseVariation2(title: string, desc: string): UIVariation {
   const schema = {
+    engine: 'sql',
     tables: [
-      { id: 'tbl-1', name: 'users', color: '#6366f1', x: 50, y: 50, columns: [
+      { id: 'tbl-1', name: 'users', color: '#6366f1', x: 50, y: 50, kind: 'table', columns: [
         { id: 'c1', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
         { id: 'c2', name: 'email', type: 'varchar', isPrimary: false, isNullable: false, isUnique: true, defaultValue: '' },
         { id: 'c3', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
       ] },
-      { id: 'tbl-2', name: 'products', color: '#f59e0b', x: 350, y: 50, columns: [
+      { id: 'tbl-2', name: 'products', color: '#f59e0b', x: 350, y: 50, kind: 'table', columns: [
         { id: 'c4', name: 'id', type: 'serial', isPrimary: true, isNullable: false, isUnique: true, defaultValue: '' },
         { id: 'c5', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
         { id: 'c6', name: 'price', type: 'decimal', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
         { id: 'c7', name: 'stock', type: 'integer', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
       ] },
-      { id: 'tbl-3', name: 'orders', color: '#10b981', x: 200, y: 280, columns: [
+      { id: 'tbl-3', name: 'orders', color: '#10b981', x: 200, y: 280, kind: 'table', columns: [
         { id: 'c8', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
         { id: 'c9', name: 'user_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
         { id: 'c10', name: 'total', type: 'decimal', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
         { id: 'c11', name: 'status', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: "'pending'" },
       ] },
-      { id: 'tbl-4', name: 'order_items', color: '#ec4899', x: 500, y: 280, columns: [
+      { id: 'tbl-4', name: 'order_items', color: '#ec4899', x: 500, y: 280, kind: 'table', columns: [
         { id: 'c12', name: 'id', type: 'serial', isPrimary: true, isNullable: false, isUnique: true, defaultValue: '' },
         { id: 'c13', name: 'order_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-3', columnId: 'c8' } },
         { id: 'c14', name: 'product_id', type: 'integer', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-2', columnId: 'c4' } },
@@ -709,12 +711,13 @@ function databaseVariation2(title: string, desc: string): UIVariation {
 
 function databaseVariation3(title: string, desc: string): UIVariation {
   const schema = {
+    engine: 'sql',
     tables: [
-      { id: 'tbl-1', name: 'orgs', color: '#10b981', x: 50, y: 50, columns: [
+      { id: 'tbl-1', name: 'orgs', color: '#10b981', x: 50, y: 50, kind: 'table', columns: [
         { id: 'c1', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
         { id: 'c2', name: 'slug', type: 'varchar', isPrimary: false, isNullable: false, isUnique: true, defaultValue: '' },
       ] },
-      { id: 'tbl-2', name: 'projects', color: '#6366f1', x: 350, y: 50, columns: [
+      { id: 'tbl-2', name: 'projects', color: '#6366f1', x: 350, y: 50, kind: 'table', columns: [
         { id: 'c3', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
         { id: 'c4', name: 'org_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
         { id: 'c5', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
@@ -733,8 +736,9 @@ function databaseVariation3(title: string, desc: string): UIVariation {
 
 function databaseVariation4(title: string, desc: string): UIVariation {
   const schema = {
+    engine: 'sql',
     tables: [
-      { id: 'tbl-1', name: 'events', color: '#f59e0b', x: 50, y: 50, columns: [
+      { id: 'tbl-1', name: 'events', color: '#f59e0b', x: 50, y: 50, kind: 'table', columns: [
         { id: 'c1', name: 'id', type: 'bigint', isPrimary: true, isNullable: false, isUnique: true, defaultValue: '' },
         { id: 'c2', name: 'type', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
         { id: 'c3', name: 'payload', type: 'jsonb', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '{}' },

@@ -538,6 +538,53 @@ const dbElements: DbElement[] = [
   { id: 'idx-gist', label: 'GiST Index', icon: MapPin, category: 'Indexes', engine: 'sql' },
 ];
 
+function normalizeColumn(col: Partial<DbColumn>): DbColumn {
+  return {
+    id: col.id || uid(),
+    name: col.name || 'column',
+    type: col.type || 'text',
+    isPrimary: col.isPrimary || false,
+    isNullable: col.isNullable !== false,
+    isUnique: col.isUnique || false,
+    defaultValue: col.defaultValue || '',
+    reference: col.reference,
+    dimension: col.dimension,
+    relLabel: col.relLabel,
+  };
+}
+
+function normalizeTable(t: Partial<DbTable>, idx: number): DbTable {
+  return {
+    id: t.id || uid(),
+    name: t.name || 'table',
+    columns: Array.isArray(t.columns) ? t.columns.map(normalizeColumn) : [],
+    x: t.x ?? 100 + idx * 60,
+    y: t.y ?? 100 + idx * 40,
+    color: t.color || tableColors[idx % tableColors.length],
+    kind: t.kind,
+  };
+}
+
+function normalizeRelation(r: Partial<DbRelation>): DbRelation {
+  return {
+    id: r.id || uid(),
+    fromTableId: r.fromTableId || '',
+    fromColumnId: r.fromColumnId || '',
+    toTableId: r.toTableId || '',
+    toColumnId: r.toColumnId || '',
+    type: r.type || 'one-to-many',
+    label: r.label,
+  };
+}
+
+function normalizeSchema(parsed: any): { tables: DbTable[]; relations: DbRelation[]; engine?: DbEngine } {
+  return {
+    tables: Array.isArray(parsed.tables) ? parsed.tables.map(normalizeTable) : [],
+    relations: Array.isArray(parsed.relations) ? parsed.relations.map(normalizeRelation) : [],
+    engine: parsed.engine,
+  };
+}
+
 /* ─── Parse/Generate ─── */
 function parseSchema(node: CanvasNode): { tables: DbTable[]; relations: DbRelation[]; engine?: DbEngine } {
   if (node.generatedFiles && node.generatedFiles.length > 0) {
@@ -545,7 +592,7 @@ function parseSchema(node: CanvasNode): { tables: DbTable[]; relations: DbRelati
     if (schemaFile) {
       try {
         const parsed = JSON.parse(schemaFile.content);
-        if (parsed.tables) return parsed;
+        if (parsed.tables) return normalizeSchema(parsed);
       } catch {}
     }
   }
@@ -555,13 +602,13 @@ function parseSchema(node: CanvasNode): { tables: DbTable[]; relations: DbRelati
     if (schemaMatch) {
       try {
         const parsed = JSON.parse(schemaMatch[1]);
-        if (parsed.tables) return parsed;
+        if (parsed.tables) return normalizeSchema(parsed);
       } catch {}
     }
 
     try {
       const parsed = JSON.parse(node.generatedCode);
-      if (parsed.tables) return parsed;
+      if (parsed.tables) return normalizeSchema(parsed);
     } catch {}
   }
 
@@ -662,9 +709,14 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
     const code = JSON.stringify({ ...schema, engine: dbEngine }, null, 2);
     const preview = generatePreviewHtml(schema.tables, schema.relations, node.title, dbEngine);
 
+    const existingFiles = node.generatedFiles?.filter(f =>
+      f.path !== 'schema.json' && f.path !== 'index.html'
+    ) || [];
+
     const generatedFiles = [
       { path: 'schema.json', content: code, language: 'json' },
       { path: 'index.html', content: preview, language: 'html' },
+      ...existingFiles,
     ];
 
     const allCode = generatedFiles.map(f => `// === ${f.path} ===\n${f.content}`).join('\n\n');
@@ -675,7 +727,7 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
       generatedFiles,
     });
     setIsDirty(false);
-  }, [schema, dbEngine, node.id, node.title, updateNode]);
+  }, [schema, dbEngine, node.id, node.title, node.generatedFiles, updateNode]);
 
   useEffect(() => {
     if (!isDirty) return;

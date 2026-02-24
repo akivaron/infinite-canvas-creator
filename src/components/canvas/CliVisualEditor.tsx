@@ -144,6 +144,15 @@ const categories = [...new Set(cliElements.map(e => e.category))];
 let stepCounter = 0;
 const newStepId = () => `step-${++stepCounter}-${Date.now()}`;
 
+function normalizeStep(step: Partial<CliStep>): CliStep {
+  return {
+    id: step.id || newStepId(),
+    kind: step.kind || 'command',
+    label: step.label || '',
+    config: typeof step.config === 'object' && step.config !== null ? step.config : {},
+  };
+}
+
 /* ─── Parse steps from node content ─── */
 function parseSteps(node: CanvasNode): CliStep[] {
   if (node.generatedFiles && node.generatedFiles.length > 0) {
@@ -151,7 +160,7 @@ function parseSteps(node: CanvasNode): CliStep[] {
     if (stepsFile) {
       try {
         const parsed = JSON.parse(stepsFile.content);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(normalizeStep);
       } catch {}
     }
   }
@@ -161,13 +170,13 @@ function parseSteps(node: CanvasNode): CliStep[] {
     if (stepsMatch) {
       try {
         const parsed = JSON.parse(stepsMatch[1]);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(normalizeStep);
       } catch {}
     }
 
     try {
       const parsed = JSON.parse(node.generatedCode);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) return parsed.map(normalizeStep);
     } catch {}
   }
 
@@ -325,9 +334,14 @@ export const CliVisualEditor = ({ node, onClose }: Props) => {
     const code = JSON.stringify(steps, null, 2);
     const preview = generateCliPreviewHtml(steps, node.title);
 
+    const existingFiles = node.generatedFiles?.filter(f =>
+      f.path !== 'cli-steps.json' && f.path !== 'index.html'
+    ) || [];
+
     const generatedFiles = [
       { path: 'cli-steps.json', content: code, language: 'json' },
       { path: 'index.html', content: preview, language: 'html' },
+      ...existingFiles,
     ];
 
     const allCode = generatedFiles.map(f => `// === ${f.path} ===\n${f.content}`).join('\n\n');
@@ -338,7 +352,7 @@ export const CliVisualEditor = ({ node, onClose }: Props) => {
       generatedFiles,
     });
     setIsDirty(false);
-  }, [steps, node.id, node.title, updateNode]);
+  }, [steps, node.id, node.title, node.generatedFiles, updateNode]);
 
   // Auto-save
   useEffect(() => {
