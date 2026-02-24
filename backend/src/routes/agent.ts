@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { CodeAgent } from '../services/codeAgent.js';
 import { ContextAnalyzer } from '../services/contextAnalyzer.js';
+import { ragService } from '../services/ragService.js';
+import { createOpenRouterService } from '../services/openrouterService.js';
 import type { GenerationRequest } from '../types/agent.js';
 
 const router = Router();
@@ -43,13 +45,41 @@ const generationRequestSchema = z.object({
   }).optional(),
   apiKey: z.string(),
   model: z.string().optional(),
+  projectId: z.string().optional(),
+  sessionId: z.string().optional(),
+  useRAG: z.boolean().optional(),
 });
 
 router.post('/generate', async (req: Request, res: Response) => {
   try {
-    const request = generationRequestSchema.parse(req.body) as GenerationRequest & { apiKey: string; model?: string };
+    const requestData = generationRequestSchema.parse(req.body) as GenerationRequest & {
+      apiKey: string;
+      model?: string;
+      projectId?: string;
+      sessionId?: string;
+      useRAG?: boolean;
+    };
 
-    const agent = new CodeAgent(request.apiKey, request.model);
+    let enhancedPrompt = requestData.prompt;
+
+    if (requestData.useRAG !== false) {
+      try {
+        enhancedPrompt = await ragService.enhancePromptWithRAG(
+          requestData.prompt,
+          requestData.projectId,
+          requestData.sessionId
+        );
+      } catch (error) {
+        console.warn('RAG enhancement failed, using original prompt:', error);
+      }
+    }
+
+    const request: GenerationRequest = {
+      ...requestData,
+      prompt: enhancedPrompt,
+    };
+
+    const agent = new CodeAgent(requestData.apiKey, requestData.model);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -199,7 +229,7 @@ Return ONLY a JSON object:
       throw new Error('OpenRouter API error');
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
     const jsonMatch = content.match(/\{[\s\S]*\}/);
 
