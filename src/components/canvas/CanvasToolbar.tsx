@@ -5,7 +5,7 @@ import {
   Search, X, Layers, Moon, Sun, Copy, Trash2,
   Code, FileCode, Grid3X3, Keyboard, Download, Eye, Package,
   Plus, Globe, Smartphone, Server, Terminal, Database, Monitor, ChevronUp,
-  CreditCard, Settings, Key, Users, History
+  CreditCard, Settings, Key, Users, History, Rocket
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { findFreePosition } from '@/lib/layout';
@@ -13,6 +13,7 @@ import { SettingsModal } from './SettingsModal';
 import { SaveStatusIndicator } from './SaveStatusIndicator';
 import { CollaborationPanel } from './CollaborationPanel';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
+import { DeploymentPanel } from './DeploymentPanel';
 
 /* ── Minimap ────────────────────────────────── */
 const Minimap = () => {
@@ -129,6 +130,7 @@ export const CanvasToolbar = () => {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showCollaboration, setShowCollaboration] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showDeployment, setShowDeployment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const projectId = useCanvasStore((state) => state.projectId);
@@ -515,6 +517,7 @@ export const CanvasToolbar = () => {
           <ToolButton icon={Keyboard} label="Shortcuts" onClick={() => setShowShortcuts(true)} />
           <ToolButton icon={History} label="Version History" onClick={() => setShowVersionHistory(true)} active={showVersionHistory} />
           <ToolButton icon={Users} label="Collaboration" onClick={() => setShowCollaboration(true)} active={showCollaboration} />
+          <ToolButton icon={Rocket} label="Deploy" onClick={() => setShowDeployment(true)} active={showDeployment} />
           <ToolButton icon={Settings} label="Settings" onClick={() => setShowSettings(true)} active={showSettings} />
 
           {pickedCount > 0 && (
@@ -553,6 +556,12 @@ export const CanvasToolbar = () => {
           <VersionHistoryPanel
             projectId={projectId}
             onClose={() => setShowVersionHistory(false)}
+          />
+        )}
+        {showDeployment && projectId && (
+          <DeploymentPanel
+            projectId={projectId}
+            onClose={() => setShowDeployment(false)}
           />
         )}
       </AnimatePresence>

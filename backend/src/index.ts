@@ -8,6 +8,7 @@ import projectsRoutes from './routes/projects.js';
 import sandboxRoutes from './routes/sandbox.js';
 import mobileRoutes from './routes/mobile.js';
 import dbsandboxRoutes from './routes/dbsandbox.js';
+import deployRoutes from './routes/deploy.js';
 import { embeddingService } from './services/embeddingService.js';
 
 dotenv.config();
@@ -36,6 +37,7 @@ app.use('/api/projects', projectsRoutes);
 app.use('/api/sandbox', sandboxRoutes);
 app.use('/api/mobile', mobileRoutes);
 app.use('/api/dbsandbox', dbsandboxRoutes);
+app.use('/api/deploy', deployRoutes);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
