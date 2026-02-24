@@ -623,7 +623,12 @@ function cliVariation4(title: string, desc: string): UIVariation {
    FULL PAGE VARIATIONS — DATABASE
    ═══════════════════════════════════════════════════ */
 
+function toSnakeCase(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+}
+
 function databaseVariation1(title: string, desc: string): UIVariation {
+  const entityName = toSnakeCase(title) || 'items';
   const schema = {
     engine: 'sql',
     tables: [
@@ -633,38 +638,33 @@ function databaseVariation1(title: string, desc: string): UIVariation {
         { id: 'c3', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
         { id: 'c4', name: 'created_at', type: 'timestamptz', isPrimary: false, isNullable: false, isUnique: false, defaultValue: 'now()' },
       ] },
-      { id: 'tbl-2', name: 'posts', color: '#ec4899', x: 350, y: 50, kind: 'table', columns: [
+      { id: 'tbl-2', name: entityName, color: '#ec4899', x: 350, y: 50, kind: 'table', columns: [
         { id: 'c5', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
         { id: 'c6', name: 'title', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
-        { id: 'c7', name: 'content', type: 'text', isPrimary: false, isNullable: true, isUnique: false, defaultValue: '' },
-        { id: 'c8', name: 'author_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
-        { id: 'c9', name: 'created_at', type: 'timestamptz', isPrimary: false, isNullable: false, isUnique: false, defaultValue: 'now()' },
-      ] },
-      { id: 'tbl-3', name: 'comments', color: '#06b6d4', x: 350, y: 280, kind: 'table', columns: [
-        { id: 'c10', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
-        { id: 'c11', name: 'body', type: 'text', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
-        { id: 'c12', name: 'post_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-2', columnId: 'c5' } },
-        { id: 'c13', name: 'user_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
+        { id: 'c7', name: 'description', type: 'text', isPrimary: false, isNullable: true, isUnique: false, defaultValue: '' },
+        { id: 'c8', name: 'owner_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
+        { id: 'c9', name: 'status', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: "'active'" },
+        { id: 'c10', name: 'created_at', type: 'timestamptz', isPrimary: false, isNullable: false, isUnique: false, defaultValue: 'now()' },
       ] },
     ],
     relations: [
       { id: 'r1', fromTableId: 'tbl-2', fromColumnId: 'c8', toTableId: 'tbl-1', toColumnId: 'c1', type: 'one-to-many' },
-      { id: 'r2', fromTableId: 'tbl-3', fromColumnId: 'c12', toTableId: 'tbl-2', toColumnId: 'c5', type: 'one-to-many' },
-      { id: 'r3', fromTableId: 'tbl-3', fromColumnId: 'c13', toTableId: 'tbl-1', toColumnId: 'c1', type: 'one-to-many' },
     ],
   };
 
   return {
     id: `var-${++variationCounter}`,
-    label: title + ' — Blog Schema',
-    description: 'Blog database with users, posts, and comments tables.',
+    label: title + ' — Basic Schema',
+    description: `Simple ${title} database with users and ${entityName} tables.`,
     category: 'dashboard',
-    previewHtml: buildDbPreview(schema, title + ' Blog Schema'),
+    previewHtml: buildDbPreview(schema, title),
     code: JSON.stringify(schema, null, 2),
   };
 }
 
 function databaseVariation2(title: string, desc: string): UIVariation {
+  const entityName = toSnakeCase(title) || 'items';
+  const singularEntity = entityName.replace(/s$/, '');
   const schema = {
     engine: 'sql',
     tables: [
@@ -673,82 +673,92 @@ function databaseVariation2(title: string, desc: string): UIVariation {
         { id: 'c2', name: 'email', type: 'varchar', isPrimary: false, isNullable: false, isUnique: true, defaultValue: '' },
         { id: 'c3', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
       ] },
-      { id: 'tbl-2', name: 'products', color: '#f59e0b', x: 350, y: 50, kind: 'table', columns: [
-        { id: 'c4', name: 'id', type: 'serial', isPrimary: true, isNullable: false, isUnique: true, defaultValue: '' },
+      { id: 'tbl-2', name: entityName, color: '#f59e0b', x: 350, y: 50, kind: 'table', columns: [
+        { id: 'c4', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
         { id: 'c5', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
-        { id: 'c6', name: 'price', type: 'decimal', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
-        { id: 'c7', name: 'stock', type: 'integer', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
+        { id: 'c6', name: 'value', type: 'decimal', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
+        { id: 'c7', name: 'quantity', type: 'integer', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
+        { id: 'c8', name: 'metadata', type: 'jsonb', isPrimary: false, isNullable: true, isUnique: false, defaultValue: '{}' },
       ] },
-      { id: 'tbl-3', name: 'orders', color: '#10b981', x: 200, y: 280, kind: 'table', columns: [
-        { id: 'c8', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
-        { id: 'c9', name: 'user_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
-        { id: 'c10', name: 'total', type: 'decimal', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '0' },
-        { id: 'c11', name: 'status', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: "'pending'" },
-      ] },
-      { id: 'tbl-4', name: 'order_items', color: '#ec4899', x: 500, y: 280, kind: 'table', columns: [
-        { id: 'c12', name: 'id', type: 'serial', isPrimary: true, isNullable: false, isUnique: true, defaultValue: '' },
-        { id: 'c13', name: 'order_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-3', columnId: 'c8' } },
-        { id: 'c14', name: 'product_id', type: 'integer', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-2', columnId: 'c4' } },
-        { id: 'c15', name: 'quantity', type: 'integer', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '1' },
+      { id: 'tbl-3', name: `${singularEntity}_logs`, color: '#10b981', x: 200, y: 280, kind: 'table', columns: [
+        { id: 'c9', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
+        { id: 'c10', name: 'user_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
+        { id: 'c11', name: `${singularEntity}_id`, type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-2', columnId: 'c4' } },
+        { id: 'c12', name: 'action', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
+        { id: 'c13', name: 'created_at', type: 'timestamptz', isPrimary: false, isNullable: false, isUnique: false, defaultValue: 'now()' },
       ] },
     ],
     relations: [
-      { id: 'r1', fromTableId: 'tbl-3', fromColumnId: 'c9', toTableId: 'tbl-1', toColumnId: 'c1', type: 'one-to-many' },
-      { id: 'r2', fromTableId: 'tbl-4', fromColumnId: 'c13', toTableId: 'tbl-3', toColumnId: 'c8', type: 'one-to-many' },
-      { id: 'r3', fromTableId: 'tbl-4', fromColumnId: 'c14', toTableId: 'tbl-2', toColumnId: 'c4', type: 'one-to-many' },
+      { id: 'r1', fromTableId: 'tbl-3', fromColumnId: 'c10', toTableId: 'tbl-1', toColumnId: 'c1', type: 'one-to-many' },
+      { id: 'r2', fromTableId: 'tbl-3', fromColumnId: 'c11', toTableId: 'tbl-2', toColumnId: 'c4', type: 'one-to-many' },
     ],
   };
 
   return {
     id: `var-${++variationCounter}`,
-    label: title + ' — E-Commerce Schema',
-    description: 'E-commerce database with users, products, orders, and order items.',
+    label: title + ' — With Audit Logs',
+    description: `${title} database with users, ${entityName}, and activity logging.`,
     category: 'dashboard',
-    previewHtml: buildDbPreview(schema, title + ' E-Commerce Schema'),
+    previewHtml: buildDbPreview(schema, title),
     code: JSON.stringify(schema, null, 2),
   };
 }
 
 function databaseVariation3(title: string, desc: string): UIVariation {
+  const entityName = toSnakeCase(title) || 'items';
+  const singularEntity = entityName.replace(/s$/, '');
   const schema = {
     engine: 'sql',
     tables: [
-      { id: 'tbl-1', name: 'orgs', color: '#10b981', x: 50, y: 50, kind: 'table', columns: [
+      { id: 'tbl-1', name: 'organizations', color: '#10b981', x: 50, y: 50, kind: 'table', columns: [
         { id: 'c1', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
         { id: 'c2', name: 'slug', type: 'varchar', isPrimary: false, isNullable: false, isUnique: true, defaultValue: '' },
+        { id: 'c3', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
       ] },
-      { id: 'tbl-2', name: 'projects', color: '#6366f1', x: 350, y: 50, kind: 'table', columns: [
-        { id: 'c3', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
-        { id: 'c4', name: 'org_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
-        { id: 'c5', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
+      { id: 'tbl-2', name: entityName, color: '#6366f1', x: 350, y: 50, kind: 'table', columns: [
+        { id: 'c4', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
+        { id: 'c5', name: 'org_id', type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-1', columnId: 'c1' } },
+        { id: 'c6', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
+        { id: 'c7', name: 'settings', type: 'jsonb', isPrimary: false, isNullable: true, isUnique: false, defaultValue: '{}' },
+      ] },
+      { id: 'tbl-3', name: `${singularEntity}_members`, color: '#ec4899', x: 200, y: 280, kind: 'table', columns: [
+        { id: 'c8', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
+        { id: 'c9', name: `${singularEntity}_id`, type: 'uuid', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '', reference: { tableId: 'tbl-2', columnId: 'c4' } },
+        { id: 'c10', name: 'user_email', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
+        { id: 'c11', name: 'role', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: "'member'" },
       ] },
     ],
     relations: [
-      { id: 'r1', fromTableId: 'tbl-2', fromColumnId: 'c4', toTableId: 'tbl-1', toColumnId: 'c1', type: 'one-to-many' },
+      { id: 'r1', fromTableId: 'tbl-2', fromColumnId: 'c5', toTableId: 'tbl-1', toColumnId: 'c1', type: 'one-to-many' },
+      { id: 'r2', fromTableId: 'tbl-3', fromColumnId: 'c9', toTableId: 'tbl-2', toColumnId: 'c4', type: 'one-to-many' },
     ],
   };
   return {
-    id: `var-${++variationCounter}`, label: title + ' — SaaS Schema', description: 'Multi-tenant SaaS database with orgs and projects.', category: 'dashboard',
-    previewHtml: buildDbPreview(schema, title + ' SaaS Schema'),
+    id: `var-${++variationCounter}`, label: title + ' — Multi-Tenant', description: `Multi-tenant ${title} database with organizations, ${entityName}, and members.`, category: 'dashboard',
+    previewHtml: buildDbPreview(schema, title),
     code: JSON.stringify(schema, null, 2),
   };
 }
 
 function databaseVariation4(title: string, desc: string): UIVariation {
+  const entityName = toSnakeCase(title) || 'items';
   const schema = {
     engine: 'sql',
     tables: [
-      { id: 'tbl-1', name: 'events', color: '#f59e0b', x: 50, y: 50, kind: 'table', columns: [
-        { id: 'c1', name: 'id', type: 'bigint', isPrimary: true, isNullable: false, isUnique: true, defaultValue: '' },
-        { id: 'c2', name: 'type', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
-        { id: 'c3', name: 'payload', type: 'jsonb', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '{}' },
+      { id: 'tbl-1', name: entityName, color: '#f59e0b', x: 50, y: 50, kind: 'table', columns: [
+        { id: 'c1', name: 'id', type: 'uuid', isPrimary: true, isNullable: false, isUnique: true, defaultValue: 'gen_random_uuid()' },
+        { id: 'c2', name: 'name', type: 'varchar', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '' },
+        { id: 'c3', name: 'data', type: 'jsonb', isPrimary: false, isNullable: false, isUnique: false, defaultValue: '{}' },
+        { id: 'c4', name: 'tags', type: 'array', isPrimary: false, isNullable: true, isUnique: false, defaultValue: '{}' },
+        { id: 'c5', name: 'created_at', type: 'timestamptz', isPrimary: false, isNullable: false, isUnique: false, defaultValue: 'now()' },
+        { id: 'c6', name: 'updated_at', type: 'timestamptz', isPrimary: false, isNullable: false, isUnique: false, defaultValue: 'now()' },
       ] },
     ],
     relations: [],
   };
   return {
-    id: `var-${++variationCounter}`, label: title + ' — Event Log', description: 'Simple event logging database with JSONB support.', category: 'dashboard',
-    previewHtml: buildDbPreview(schema, title + ' Event Log'),
+    id: `var-${++variationCounter}`, label: title + ' — Simple Store', description: `Simple ${title} database with JSONB data and tags.`, category: 'dashboard',
+    previewHtml: buildDbPreview(schema, title),
     code: JSON.stringify(schema, null, 2),
   };
 }
