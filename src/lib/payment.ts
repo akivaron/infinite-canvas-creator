@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 
-export interface CreatePaymentIntentParams {
+export type PaymentProvider = 'Stripe' | 'PayPal' | 'Paddle' | 'LemonSqueezy';
+
+export interface CreatePaymentParams {
+  provider: PaymentProvider;
   amount: number;
   currency?: string;
   customerEmail?: string;
@@ -8,15 +11,21 @@ export interface CreatePaymentIntentParams {
   description?: string;
   projectId?: string;
   metadata?: Record<string, string>;
+  variantId?: string;
+  priceId?: string;
 }
 
-export interface PaymentIntentResponse {
-  clientSecret: string;
-  paymentIntentId: string;
+export interface PaymentResponse {
+  id: string;
+  url?: string;
+  clientSecret?: string;
+  approveUrl?: string;
+  checkoutUrl?: string;
   amount: number;
   currency: string;
   status: string;
-  dbId: string;
+  dbId?: string;
+  provider: PaymentProvider;
 }
 
 export interface PaymentIntent {
@@ -34,9 +43,7 @@ export interface PaymentIntent {
   updated_at: string;
 }
 
-export async function createPaymentIntent(
-  params: CreatePaymentIntentParams
-): Promise<PaymentIntentResponse> {
+async function callPaymentFunction(endpoint: string, params: Record<string, unknown>): Promise<any> {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -44,7 +51,7 @@ export async function createPaymentIntent(
     throw new Error('Supabase configuration missing');
   }
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/create-payment-intent`, {
+  const response = await fetch(`${supabaseUrl}/functions/v1/${endpoint}`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${supabaseAnonKey}`,
@@ -55,10 +62,120 @@ export async function createPaymentIntent(
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to create payment intent');
+    throw new Error(errorData.error || `Failed to call ${endpoint}`);
   }
 
   return response.json();
+}
+
+export async function createPayment(params: CreatePaymentParams): Promise<PaymentResponse> {
+  const { provider, amount, currency = 'USD', ...restParams } = params;
+
+  switch (provider) {
+    case 'Stripe':
+      return createStripePayment({ amount, currency, ...restParams });
+    case 'PayPal':
+      return createPayPalPayment({ amount, currency, ...restParams });
+    case 'LemonSqueezy':
+      return createLemonSqueezyPayment({ amount, currency, ...restParams });
+    case 'Paddle':
+      return createPaddlePayment({ amount, currency, ...restParams });
+    default:
+      throw new Error(`Unsupported payment provider: ${provider}`);
+  }
+}
+
+async function createStripePayment(params: Omit<CreatePaymentParams, 'provider'>): Promise<PaymentResponse> {
+  const data = await callPaymentFunction('create-payment-intent', {
+    amount: params.amount * 100,
+    currency: params.currency?.toLowerCase(),
+    customerEmail: params.customerEmail,
+    customerName: params.customerName,
+    description: params.description,
+    projectId: params.projectId,
+    metadata: params.metadata,
+  });
+
+  return {
+    id: data.paymentIntentId,
+    clientSecret: data.clientSecret,
+    amount: data.amount,
+    currency: data.currency,
+    status: data.status,
+    dbId: data.dbId,
+    provider: 'Stripe',
+  };
+}
+
+async function createPayPalPayment(params: Omit<CreatePaymentParams, 'provider'>): Promise<PaymentResponse> {
+  const data = await callPaymentFunction('paypal-create-order', {
+    amount: params.amount * 100,
+    currency: params.currency?.toUpperCase(),
+    customerEmail: params.customerEmail,
+    customerName: params.customerName,
+    description: params.description,
+    projectId: params.projectId,
+    metadata: params.metadata,
+  });
+
+  return {
+    id: data.orderId,
+    approveUrl: data.approveUrl,
+    url: data.approveUrl,
+    amount: data.amount,
+    currency: data.currency,
+    status: data.status,
+    dbId: data.dbId,
+    provider: 'PayPal',
+  };
+}
+
+async function createLemonSqueezyPayment(params: Omit<CreatePaymentParams, 'provider'>): Promise<PaymentResponse> {
+  const data = await callPaymentFunction('lemonsqueezy-create-checkout', {
+    variantId: params.variantId || '1',
+    amount: params.amount * 100,
+    currency: params.currency?.toUpperCase(),
+    customerEmail: params.customerEmail,
+    customerName: params.customerName,
+    description: params.description,
+    projectId: params.projectId,
+    metadata: params.metadata,
+  });
+
+  return {
+    id: data.checkoutId,
+    checkoutUrl: data.checkoutUrl,
+    url: data.checkoutUrl,
+    amount: data.amount,
+    currency: data.currency,
+    status: data.status,
+    dbId: data.dbId,
+    provider: 'LemonSqueezy',
+  };
+}
+
+async function createPaddlePayment(params: Omit<CreatePaymentParams, 'provider'>): Promise<PaymentResponse> {
+  const data = await callPaymentFunction('paddle-create-transaction', {
+    priceId: params.priceId || 'pri_01234',
+    amount: params.amount * 100,
+    currency: params.currency?.toUpperCase(),
+    customerEmail: params.customerEmail,
+    customerName: params.customerName,
+    description: params.description,
+    projectId: params.projectId,
+    metadata: params.metadata,
+  });
+
+  return {
+    id: data.transactionId,
+    checkoutUrl: data.checkoutUrl,
+    url: data.checkoutUrl,
+    amount: data.amount,
+    currency: data.currency,
+    status: data.status,
+    dbId: data.dbId,
+    provider: 'Paddle',
+  };
 }
 
 export async function getPaymentIntents(projectId?: string): Promise<PaymentIntent[]> {
@@ -91,11 +208,11 @@ export async function getPaymentIntent(id: string): Promise<PaymentIntent | null
   return data;
 }
 
-export async function getPaymentIntentByStripeId(stripeId: string): Promise<PaymentIntent | null> {
+export async function getPaymentIntentByTransactionId(transactionId: string): Promise<PaymentIntent | null> {
   const { data, error } = await supabase
     .from('payment_intents')
     .select('*')
-    .eq('stripe_payment_intent_id', stripeId)
+    .eq('stripe_payment_intent_id', transactionId)
     .maybeSingle();
 
   if (error) {
@@ -117,6 +234,7 @@ export function formatCurrency(amount: number, currency: string = 'USD'): string
 export function getPaymentStatusColor(status: string): string {
   switch (status) {
     case 'succeeded':
+    case 'completed':
       return 'text-green-500';
     case 'pending':
     case 'processing':
@@ -133,6 +251,8 @@ export function getPaymentStatusLabel(status: string): string {
   switch (status) {
     case 'succeeded':
       return 'Succeeded';
+    case 'completed':
+      return 'Completed';
     case 'pending':
       return 'Pending';
     case 'processing':
@@ -143,5 +263,35 @@ export function getPaymentStatusLabel(status: string): string {
       return 'Canceled';
     default:
       return status;
+  }
+}
+
+export function getProviderDisplayName(provider: PaymentProvider): string {
+  switch (provider) {
+    case 'Stripe':
+      return 'Stripe';
+    case 'PayPal':
+      return 'PayPal';
+    case 'LemonSqueezy':
+      return 'Lemon Squeezy';
+    case 'Paddle':
+      return 'Paddle';
+    default:
+      return provider;
+  }
+}
+
+export function getProviderIcon(provider: PaymentProvider): string {
+  switch (provider) {
+    case 'Stripe':
+      return '💳';
+    case 'PayPal':
+      return '🅿️';
+    case 'LemonSqueezy':
+      return '🍋';
+    case 'Paddle':
+      return '🏓';
+    default:
+      return '💰';
   }
 }

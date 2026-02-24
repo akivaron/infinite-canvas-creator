@@ -1,14 +1,23 @@
-# Payment Integration with Stripe
+# Multi-Provider Payment Integration
 
-This project includes a complete Stripe payment integration with real-time webhook processing and database persistence.
+This project includes complete payment integration with multiple providers: Stripe, PayPal, LemonSqueezy, and Paddle. All integrations include real-time webhook processing and database persistence.
+
+## Supported Payment Providers
+
+- **Stripe** - Credit/debit cards, payment intents
+- **PayPal** - PayPal accounts, credit/debit cards
+- **LemonSqueezy** - Merchant of record, global payments
+- **Paddle** - SaaS billing, subscription management
 
 ## Features
 
-- Create payment intents via Supabase Edge Function
-- Process Stripe webhooks for payment events
+- Multi-provider payment support (Stripe, PayPal, LemonSqueezy, Paddle)
+- Unified payment API for all providers
+- Real-time webhook processing
 - Store payment data in Supabase database
 - Visual payment plan editor
 - Payment history tracking
+- Automatic provider detection and routing
 
 ## Database Tables
 
@@ -38,7 +47,9 @@ Stores webhook events from Stripe:
 
 ## Edge Functions
 
-### `create-payment-intent`
+### Stripe Functions
+
+#### `create-payment-intent`
 Creates a new Stripe payment intent.
 
 **Endpoint:** `{SUPABASE_URL}/functions/v1/create-payment-intent`
@@ -73,69 +84,185 @@ Creates a new Stripe payment intent.
 }
 ```
 
-### `stripe-webhook`
+#### `stripe-webhook`
 Processes Stripe webhook events.
 
 **Endpoint:** `{SUPABASE_URL}/functions/v1/stripe-webhook`
 
-**Method:** POST
+### PayPal Functions
 
-**Headers:**
-- `stripe-signature` - Stripe webhook signature
+#### `paypal-create-order`
+Creates a new PayPal order.
 
-This endpoint is called automatically by Stripe when payment events occur.
+**Endpoint:** `{SUPABASE_URL}/functions/v1/paypal-create-order`
+
+**Response:**
+```json
+{
+  "orderId": "ORDER-123",
+  "approveUrl": "https://paypal.com/checkoutnow?token=xxx",
+  "amount": 1999,
+  "currency": "USD",
+  "status": "CREATED"
+}
+```
+
+#### `paypal-webhook`
+Processes PayPal webhook events.
+
+**Endpoint:** `{SUPABASE_URL}/functions/v1/paypal-webhook`
+
+### LemonSqueezy Functions
+
+#### `lemonsqueezy-create-checkout`
+Creates a new LemonSqueezy checkout.
+
+**Endpoint:** `{SUPABASE_URL}/functions/v1/lemonsqueezy-create-checkout`
+
+**Request Body:**
+```json
+{
+  "variantId": "123456",
+  "amount": 1999,
+  "currency": "USD"
+}
+```
+
+**Response:**
+```json
+{
+  "checkoutId": "checkout_123",
+  "checkoutUrl": "https://lemonsqueezy.com/checkout/xxx",
+  "amount": 1999,
+  "currency": "USD"
+}
+```
+
+#### `lemonsqueezy-webhook`
+Processes LemonSqueezy webhook events.
+
+**Endpoint:** `{SUPABASE_URL}/functions/v1/lemonsqueezy-webhook`
+
+### Paddle Functions
+
+#### `paddle-create-transaction`
+Creates a new Paddle transaction.
+
+**Endpoint:** `{SUPABASE_URL}/functions/v1/paddle-create-transaction`
+
+**Request Body:**
+```json
+{
+  "priceId": "pri_01234",
+  "amount": 1999,
+  "currency": "USD"
+}
+```
+
+**Response:**
+```json
+{
+  "transactionId": "txn_123",
+  "checkoutUrl": "https://sandbox-checkout.paddle.com/xxx",
+  "amount": 1999,
+  "currency": "USD"
+}
+```
+
+#### `paddle-webhook`
+Processes Paddle webhook events.
+
+**Endpoint:** `{SUPABASE_URL}/functions/v1/paddle-webhook`
 
 ## Setup Instructions
 
-### 1. Get Your Stripe Keys
+### 1. Stripe Setup
 
-1. Sign up for a Stripe account at https://dashboard.stripe.com/register
+1. Sign up at https://dashboard.stripe.com/register
 2. Navigate to Developers > API keys
 3. Copy your keys:
    - **Publishable key** (starts with `pk_test_` or `pk_live_`)
    - **Secret key** (starts with `sk_test_` or `sk_live_`)
+4. Configure webhook:
+   - Go to Developers > Webhooks
+   - Add endpoint: `{SUPABASE_URL}/functions/v1/stripe-webhook`
+   - Select events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`
+   - Copy webhook signing secret
 
-### 2. Configure Stripe Webhook
+**Environment Variables:**
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `VITE_STRIPE_PUBLISHABLE_KEY` (frontend)
 
-1. Go to Developers > Webhooks in Stripe Dashboard
-2. Click "Add endpoint"
-3. Enter your webhook URL: `{SUPABASE_URL}/functions/v1/stripe-webhook`
-4. Select events to listen to:
-   - `payment_intent.succeeded`
-   - `payment_intent.payment_failed`
-   - `payment_intent.canceled`
-   - `payment_intent.created`
-5. Copy the **Webhook signing secret** (starts with `whsec_`)
+### 2. PayPal Setup
 
-### 3. Add Environment Variables
+1. Sign up at https://developer.paypal.com
+2. Create a REST API app
+3. Copy credentials:
+   - **Client ID**
+   - **Client Secret**
+4. Configure webhook:
+   - Go to Webhooks in your app
+   - Add webhook URL: `{SUPABASE_URL}/functions/v1/paypal-webhook`
+   - Select events: `CHECKOUT.ORDER.APPROVED`, `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.CAPTURE.DENIED`
 
-The following environment variables are automatically configured in Supabase:
+**Environment Variables:**
+- `PAYPAL_CLIENT_ID`
+- `PAYPAL_SECRET`
+- `PAYPAL_MODE` (sandbox or live)
 
-- `STRIPE_SECRET_KEY` - Your Stripe secret key
-- `STRIPE_WEBHOOK_SECRET` - Your webhook signing secret
-- `SUPABASE_URL` - Automatically provided
-- `SUPABASE_ANON_KEY` - Automatically provided
-- `SUPABASE_SERVICE_ROLE_KEY` - Automatically provided
+### 3. LemonSqueezy Setup
 
-For the frontend, add to your `.env` file:
+1. Sign up at https://lemonsqueezy.com
+2. Navigate to Settings > API
+3. Create API key
+4. Get your Store ID from Settings > General
+5. Configure webhook:
+   - Go to Settings > Webhooks
+   - Add webhook URL: `{SUPABASE_URL}/functions/v1/lemonsqueezy-webhook`
+   - Copy signing secret
+
+**Environment Variables:**
+- `LEMONSQUEEZY_API_KEY`
+- `LEMONSQUEEZY_STORE_ID`
+
+### 4. Paddle Setup
+
+1. Sign up at https://paddle.com
+2. Navigate to Developer Tools > Authentication
+3. Create API key
+4. Configure webhook:
+   - Go to Developer Tools > Notifications
+   - Add webhook URL: `{SUPABASE_URL}/functions/v1/paddle-webhook`
+   - Select events: `transaction.created`, `transaction.completed`, `transaction.payment_failed`
+
+**Environment Variables:**
+- `PADDLE_API_KEY`
+- `PADDLE_ENVIRONMENT` (sandbox or production)
+
+### 5. Frontend Configuration
+
+Add to your `.env` file:
 ```
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_your_key_here
+VITE_PAYPAL_CLIENT_ID=your_paypal_client_id
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_anon_key
 ```
 
 ## Usage
 
-### Creating a Payment
+### Creating a Payment (Unified API)
 
 ```typescript
-import { createPaymentIntent } from '@/lib/payment';
+import { createPayment } from '@/lib/payment';
 
 async function handlePurchase() {
   try {
-    const { clientSecret } = await createPaymentIntent({
-      amount: 1999, // $19.99 in cents
-      currency: 'usd',
+    const response = await createPayment({
+      provider: 'Stripe', // or 'PayPal', 'LemonSqueezy', 'Paddle'
+      amount: 1999,
+      currency: 'USD',
       customerEmail: 'customer@example.com',
       description: 'Premium Plan',
       metadata: {
@@ -143,26 +270,64 @@ async function handlePurchase() {
       },
     });
 
-    // Use clientSecret with Stripe.js to collect payment
-    const stripe = await loadStripe(process.env.VITE_STRIPE_PUBLISHABLE_KEY);
-    const { error } = await stripe.confirmCardPayment(clientSecret, {
-      payment_method: {
-        card: cardElement,
-        billing_details: {
-          email: 'customer@example.com',
-        },
-      },
-    });
-
-    if (error) {
-      console.error('Payment failed:', error);
-    } else {
-      console.log('Payment succeeded!');
+    if (response.url) {
+      window.location.href = response.url;
+    } else if (response.clientSecret) {
+      console.log('Payment initialized:', response.clientSecret);
     }
   } catch (error) {
     console.error('Error creating payment:', error);
   }
 }
+```
+
+### Provider-Specific Examples
+
+#### Stripe
+```typescript
+const response = await createPayment({
+  provider: 'Stripe',
+  amount: 1999,
+  currency: 'USD',
+  customerEmail: 'customer@example.com',
+  description: 'Premium Plan',
+});
+```
+
+#### PayPal
+```typescript
+const response = await createPayment({
+  provider: 'PayPal',
+  amount: 1999,
+  currency: 'USD',
+  customerEmail: 'customer@example.com',
+  description: 'Premium Plan',
+});
+window.location.href = response.approveUrl;
+```
+
+#### LemonSqueezy
+```typescript
+const response = await createPayment({
+  provider: 'LemonSqueezy',
+  amount: 1999,
+  currency: 'USD',
+  variantId: '123456',
+  customerEmail: 'customer@example.com',
+});
+window.location.href = response.checkoutUrl;
+```
+
+#### Paddle
+```typescript
+const response = await createPayment({
+  provider: 'Paddle',
+  amount: 1999,
+  currency: 'USD',
+  priceId: 'pri_01234',
+  customerEmail: 'customer@example.com',
+});
+window.location.href = response.checkoutUrl;
 ```
 
 ### Querying Payment History
