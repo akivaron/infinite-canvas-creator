@@ -32,6 +32,69 @@ export interface ProgressCallback {
   (phase: 'thinking' | 'generating' | 'parsing' | 'finalizing', message: string, detail?: string): void;
 }
 
+export async function improvePrompt(
+  apiKey: string,
+  model: string,
+  originalPrompt: string,
+  platform: string
+): Promise<{ improvedPrompt: string; caption: string }> {
+  try {
+    const systemPrompt = `You are a prompt engineering expert. Your task is to improve user prompts to get better results from AI code generation.
+
+Improve the prompt by:
+1. Adding specific technical details
+2. Clarifying ambiguous requirements
+3. Adding modern design principles
+4. Specifying best practices
+5. Making it more actionable
+
+Return ONLY a JSON object with this structure:
+{
+  "improvedPrompt": "the enhanced version of the prompt with more details and clarity",
+  "caption": "a short, catchy 3-5 word title for this project"
+}`;
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'Infinite Canvas IDE',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Platform: ${platform}\nOriginal prompt: ${originalPrompt}\n\nImprove this prompt and generate a caption.` },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Failed to improve prompt');
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return { improvedPrompt: originalPrompt, caption: 'New Project' };
+    }
+
+    const result = JSON.parse(jsonMatch[0]);
+    return {
+      improvedPrompt: result.improvedPrompt || originalPrompt,
+      caption: result.caption || 'New Project',
+    };
+  } catch (error) {
+    console.error('Error improving prompt:', error);
+    return { improvedPrompt: originalPrompt, caption: 'New Project' };
+  }
+}
+
 export async function generateOpenRouterCompletion(
   apiKey: string,
   model: string,

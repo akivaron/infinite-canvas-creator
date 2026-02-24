@@ -881,13 +881,34 @@ export async function generateFullPageWithAI(
   apiKey: string,
   modelId: string,
   language?: string,
-  onProgress?: ProgressCallback
-): Promise<UIVariation> {
+  onProgress?: ProgressCallback,
+  autoImprove: boolean = true
+): Promise<UIVariation & { improvedPrompt?: string; caption?: string }> {
   console.log('[AI Generation] Starting with model:', modelId, 'platform:', platform);
+
+  let finalTitle = title;
+  let finalDescription = description;
+  let improvedPrompt: string | undefined;
+  let caption: string | undefined;
+
   try {
+    if (autoImprove && description) {
+      onProgress?.('thinking', 'Improving prompt...', 'Optimizing for better results');
+
+      const { improvePrompt } = await import('@/lib/openrouter');
+      const improved = await improvePrompt(apiKey, modelId, description, platform);
+
+      finalDescription = improved.improvedPrompt;
+      improvedPrompt = improved.improvedPrompt;
+      caption = improved.caption;
+      finalTitle = improved.caption;
+
+      console.log('[AI Generation] Prompt improved:', { original: description, improved: finalDescription, caption });
+    }
+
     const result = await runCodeAgent({
-      title,
-      description,
+      title: finalTitle,
+      description: finalDescription,
       platform: platform as Platform,
       language,
       apiKey,
@@ -903,6 +924,8 @@ export async function generateFullPageWithAI(
       code: result.files.map(f => `// --- ${f.path} ---\n${f.content}`).join('\n\n'),
       category: result.category,
       files: result.files,
+      improvedPrompt,
+      caption,
     };
   } catch (error) {
     console.error('[AI Generation] FAILED, falling back to static:', error);

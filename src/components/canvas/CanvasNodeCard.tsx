@@ -173,8 +173,14 @@ export const CanvasNodeCard = ({ node }: Props) => {
           variations = await Promise.all(promises);
           console.log('[Generate] AI generation complete, variations:', variations.length);
           const hasAiContent = variations.some(v => v.id.startsWith('ai-var-'));
+
           if (hasAiContent) {
             toast.success('AI generation complete!', { duration: 2000 });
+
+            const firstVariation = variations[0];
+            if (firstVariation.caption) {
+              updateNode(node.id, { title: firstVariation.caption });
+            }
           } else {
             toast.warning('AI failed, used fallback templates', { duration: 3000 });
           }
@@ -280,8 +286,13 @@ export const CanvasNodeCard = ({ node }: Props) => {
           const modelName = effectiveModel.split('/').pop();
           toast.info(`Regenerating with ${nodeModel === 'auto' ? 'auto-selected ' : ''}${modelName}...`, { duration: 2000 });
           variation = await generateFullPageWithAI(node.title, node.description, node.platform!, openRouterKey!, effectiveModel, node.language, onProgress);
+
           if (variation.id.startsWith('ai-var-')) {
             toast.success('Regeneration complete!', { duration: 2000 });
+
+            if (variation.caption) {
+              updateNode(node.id, { title: variation.caption });
+            }
           }
         } else {
           const parentNode = node.parentId
