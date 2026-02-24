@@ -4,10 +4,12 @@ import { useCanvasStore } from '@/stores/canvasStore';
 import { CanvasNodeCard } from './CanvasNodeCard';
 import { CanvasConnections } from './CanvasConnections';
 import { SaveStatusBadge } from './SaveStatusIndicator';
+import { PresenceCursors, PresenceAvatars } from './PresenceCursors';
 import { useAutosave } from '@/hooks/use-autosave';
+import { usePresenceTracking } from '@/hooks/use-collaboration';
 
 export const InfiniteCanvas = () => {
-  const { nodes, zoom, panX, panY, setZoom, setPan, isDragging, drag, endDrag, selectNode, connectingFromId, cancelConnecting, projectId } = useCanvasStore();
+  const { nodes, zoom, panX, panY, setZoom, setPan, isDragging, drag, endDrag, selectNode, connectingFromId, cancelConnecting, projectId, selectedNodeId } = useCanvasStore();
 
   useAutosave({
     enabled: true,
@@ -18,6 +20,9 @@ export const InfiniteCanvas = () => {
       }
     },
   });
+
+  const { trackCursor } = usePresenceTracking(projectId, true, 200);
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
@@ -95,6 +100,10 @@ export const InfiniteCanvas = () => {
       // Track mouse for connection line
       setMousePos({ x: e.clientX, y: e.clientY });
 
+      const canvasCursorX = (e.clientX - panX) / zoom;
+      const canvasCursorY = (e.clientY - panY) / zoom;
+      trackCursor(canvasCursorX, canvasCursorY, selectedNodeId || undefined);
+
       if (isPanning.current) {
         const dx = e.clientX - lastMouse.current.x;
         const dy = e.clientY - lastMouse.current.y;
@@ -105,7 +114,7 @@ export const InfiniteCanvas = () => {
         drag(e.clientX, e.clientY);
       }
     },
-    [isPanning, isDragging, panX, panY, setPan, drag]
+    [isPanning, isDragging, panX, panY, setPan, drag, zoom, trackCursor, selectedNodeId]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -202,6 +211,12 @@ export const InfiniteCanvas = () => {
 
       {/* Save status badge */}
       <SaveStatusBadge />
+
+      {/* Presence cursors */}
+      {projectId && <PresenceCursors projectId={projectId} zoom={zoom} panX={panX} panY={panY} />}
+
+      {/* Active users avatars */}
+      {projectId && <PresenceAvatars projectId={projectId} />}
     </div>
   );
 };

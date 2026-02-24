@@ -5,12 +5,14 @@ import {
   Search, X, Layers, Moon, Sun, Copy, Trash2,
   Code, FileCode, Grid3X3, Keyboard, Download, Eye, Package,
   Plus, Globe, Smartphone, Server, Terminal, Database, Monitor, ChevronUp,
-  CreditCard, Settings, Key
+  CreditCard, Settings, Key, Users, History
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { findFreePosition } from '@/lib/layout';
 import { SettingsModal } from './SettingsModal';
 import { SaveStatusIndicator } from './SaveStatusIndicator';
+import { CollaborationPanel } from './CollaborationPanel';
+import { VersionHistoryPanel } from './VersionHistoryPanel';
 
 /* ── Minimap ────────────────────────────────── */
 const Minimap = () => {
@@ -125,8 +127,11 @@ export const CanvasToolbar = () => {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showCollaboration, setShowCollaboration] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  const projectId = useCanvasStore((state) => state.projectId);
 
   // Apply dark mode to html
   useEffect(() => {
@@ -508,6 +513,8 @@ export const CanvasToolbar = () => {
           <ToolButton icon={darkMode ? Sun : Moon} label="Theme (D)" onClick={toggleDarkMode} />
           <ToolButton icon={Download} label="Export JSON" onClick={handleExport} />
           <ToolButton icon={Keyboard} label="Shortcuts" onClick={() => setShowShortcuts(true)} />
+          <ToolButton icon={History} label="Version History" onClick={() => setShowVersionHistory(true)} active={showVersionHistory} />
+          <ToolButton icon={Users} label="Collaboration" onClick={() => setShowCollaboration(true)} active={showCollaboration} />
           <ToolButton icon={Settings} label="Settings" onClick={() => setShowSettings(true)} active={showSettings} />
 
           {pickedCount > 0 && (
@@ -536,6 +543,18 @@ export const CanvasToolbar = () => {
       {/* Settings modal */}
       <AnimatePresence>
         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+        {showCollaboration && projectId && (
+          <CollaborationPanel
+            projectId={projectId}
+            onClose={() => setShowCollaboration(false)}
+          />
+        )}
+        {showVersionHistory && projectId && (
+          <VersionHistoryPanel
+            projectId={projectId}
+            onClose={() => setShowVersionHistory(false)}
+          />
+        )}
       </AnimatePresence>
 
       {/* Clear all */}
