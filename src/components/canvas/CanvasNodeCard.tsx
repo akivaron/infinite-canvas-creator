@@ -141,14 +141,16 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
       const { aiModel: globalModel, openRouterKey } = useCanvasStore.getState();
       const nodeModel = node.aiModel || globalModel;
-      const useAI = nodeModel !== 'auto' && openRouterKey;
+      const defaultModel = 'anthropic/claude-sonnet-4';
+      const effectiveModel = nodeModel === 'auto' ? defaultModel : nodeModel;
+      const useAI = Boolean(openRouterKey);
       const lang = language || node.language;
 
       try {
         let variations;
         if (useAI) {
           const promises = Array.from({ length: variationCount }).map(() =>
-            generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, nodeModel, lang)
+            generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, effectiveModel, lang)
           );
           variations = await Promise.all(promises);
         } else {
@@ -232,12 +234,14 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
       const { aiModel: globalModel, openRouterKey } = useCanvasStore.getState();
       const nodeModel = node.aiModel || globalModel;
-      const useAI = nodeModel !== 'auto' && openRouterKey;
+      const defaultModel = 'anthropic/claude-sonnet-4';
+      const effectiveModel = nodeModel === 'auto' ? defaultModel : nodeModel;
+      const useAI = Boolean(openRouterKey);
 
       try {
         let variation;
         if (useAI) {
-          variation = await generateFullPageWithAI(node.title, node.description, node.platform!, openRouterKey!, nodeModel, node.language);
+          variation = await generateFullPageWithAI(node.title, node.description, node.platform!, openRouterKey!, effectiveModel, node.language);
         } else {
           // Find parent idea node to get original title
           const parentNode = node.parentId
@@ -279,12 +283,14 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
       const { aiModel: globalModel, openRouterKey } = useCanvasStore.getState();
       const nodeModel = node.aiModel || globalModel;
-      const useAI = nodeModel !== 'auto' && openRouterKey;
+      const defaultModel = 'anthropic/claude-sonnet-4';
+      const effectiveModel = nodeModel === 'auto' ? defaultModel : nodeModel;
+      const useAI = Boolean(openRouterKey);
 
       try {
         let subSections;
         if (useAI) {
-          subSections = await generateSubSectionsWithAI(node.title, node.platform || 'web', subUiPrompt, openRouterKey!, nodeModel, variationCount);
+          subSections = await generateSubSectionsWithAI(node.title, node.platform || 'web', subUiPrompt, openRouterKey!, effectiveModel, variationCount);
         } else {
           await new Promise(r => setTimeout(r, 1200));
           subSections = generateSubSections(node.title, node.platform || 'web', subUiPrompt).slice(0, variationCount);

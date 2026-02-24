@@ -142,7 +142,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   dragNodeId: null,
   dragOffset: { x: 0, y: 0 },
   darkMode: getInitialDarkMode(),
-  aiModel: 'auto',
+  aiModel: localStorage.getItem('ai_model') || 'auto',
   openRouterKey: localStorage.getItem('openrouter_key'),
   availableModels: JSON.parse(localStorage.getItem('available_models') || '[]'),
   projectId: localStorage.getItem('current_project_id'),
@@ -276,7 +276,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       return { darkMode: next };
     }),
 
-  setAiModel: (model: string) => set({ aiModel: model }),
+  setAiModel: (model: string) => {
+    localStorage.setItem('ai_model', model);
+    set({ aiModel: model });
+  },
 
   setOpenRouterKey: (key: string | null) => {
     if (key) localStorage.setItem('openrouter_key', key);
