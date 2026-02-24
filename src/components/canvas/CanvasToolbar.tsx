@@ -112,6 +112,7 @@ export const CanvasToolbar = () => {
     addNode, zoom, setZoom, setPan, nodes,
     selectedNodeId, duplicateNode, removeNode, clearAll,
     darkMode, toggleDarkMode, setAssemblyPanelOpen, cancelConnecting, connectingFromId,
+    showClearConfirm, setShowClearConfirm,
   } = useCanvasStore();
   const pickedCount = nodes.filter((n) => n.picked).length;
 
@@ -143,6 +144,14 @@ export const CanvasToolbar = () => {
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) { removeNode(selectedNodeId); }
       if (e.key === 'Escape') { useCanvasStore.getState().selectNode(null); setShowSearch(false); setShowIdeaInput(false); cancelConnecting(); }
       if (e.key === '/' || (e.key === 'f' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); setShowSearch(true); }
+      if ((e.key === 'e' || e.key === 'E') && selectedNodeId) {
+        e.preventDefault();
+        const el = document.querySelector(`[data-node-id="${selectedNodeId}"]`);
+        if (el) {
+          const editBtn = el.querySelector('button[title="Visual Edit"], button[title="API Builder"], button[title="CLI Builder"], button[title="Database Designer"], button[title="Payment Manager"], button[title="Env Manager"]') as HTMLButtonElement;
+          if (editBtn) editBtn.click();
+        }
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -360,7 +369,8 @@ export const CanvasToolbar = () => {
                         key={n.id}
                         onClick={() => {
                           useCanvasStore.getState().selectNode(n.id);
-                          useCanvasStore.getState().setPan(-n.x + window.innerWidth / 2 - n.width / 2, -n.y + window.innerHeight / 2 - 150);
+                          const z = useCanvasStore.getState().zoom;
+                          useCanvasStore.getState().setPan(window.innerWidth / 2 - (n.x + n.width / 2) * z, window.innerHeight / 2 - (n.y + 150) * z);
                           setShowSearch(false);
                           setSearchQuery('');
                         }}
@@ -531,11 +541,49 @@ export const CanvasToolbar = () => {
           className="fixed top-6 right-6 z-20 px-4 py-2.5 rounded-2xl bg-card/90 backdrop-blur-xl border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          onClick={clearAll}
+          onClick={() => setShowClearConfirm(true)}
         >
           Clear All
         </motion.button>
       )}
+
+      {/* Clear All confirmation dialog */}
+      <AnimatePresence>
+        {showClearConfirm && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowClearConfirm(false)}
+          >
+            <motion.div
+              className="node-card p-8 w-[400px]"
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-lg font-black tracking-tight uppercase text-foreground mb-3">Clear All Nodes?</h2>
+              <p className="brand-description mb-6">This will permanently remove all {nodes.length} nodes and their connections. This action cannot be undone.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 py-3 rounded-xl border border-border text-foreground text-[10px] font-black uppercase tracking-widest hover:bg-secondary/50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={clearAll}
+                  className="flex-1 py-3 rounded-xl bg-destructive text-destructive-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all"
+                >
+                  Clear All
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <input
         ref={fileInputRef}

@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, Monitor, Smartphone, Layout, CreditCard, Star } from 'lucide-react';
+import { X, Check, Monitor, Smartphone, Layout, CreditCard, Star, Server, Terminal, Database, MonitorDot } from 'lucide-react';
 import { useCanvasStore, type UIVariation } from '@/stores/canvasStore';
 import { findFreePosition } from '@/lib/layout';
+import { saveGeneratedFiles } from '@/lib/agents/fileStore';
 
 const categoryIcons: Record<UIVariation['category'], typeof Monitor> = {
   header: Layout,
@@ -16,17 +17,12 @@ const categoryIcons: Record<UIVariation['category'], typeof Monitor> = {
 export const PreviewSelectionPanel = () => {
   const {
     previewPanelOpen, previewVariations, previewSourceNodeId,
-    closePreviewPanel, addNode, connectNodes, togglePick, nodes
+    closePreviewPanel, addNode, connectNodes,
   } = useCanvasStore();
 
   if (!previewPanelOpen) return null;
 
-  const handleSelect = (variation: UIVariation) => {
-    if (!previewSourceNodeId) return;
-    const currentNodes = useCanvasStore.getState().nodes;
-    const sourceNode = currentNodes.find((n) => n.id === previewSourceNodeId);
-    if (!sourceNode) return;
-
+  const createNodeFromVariation = (variation: UIVariation, currentNodes: any[], sourceNode: any) => {
     const nodeWidth = 380;
     const nodeHeight = 320;
     const padding = 80;
@@ -40,8 +36,11 @@ export const PreviewSelectionPanel = () => {
       padding
     );
 
+    const platform = sourceNode.platform || 'web';
+    const nodeType = platform === 'api' ? 'api' : platform === 'cli' ? 'cli' : platform === 'database' ? 'database' : 'design';
+
     const newId = addNode({
-      type: 'design',
+      type: nodeType,
       title: variation.label,
       description: variation.description,
       x,
@@ -52,73 +51,42 @@ export const PreviewSelectionPanel = () => {
       generatedCode: variation.code,
       content: variation.previewHtml,
       picked: true,
-      parentId: previewSourceNodeId,
+      parentId: previewSourceNodeId!,
       pageRole: variation.category,
+      platform,
+      generatedFiles: variation.files,
     });
-    connectNodes(previewSourceNodeId, newId);
-    togglePick(newId);
-    return newId;
+
+    if (variation.files && variation.files.length > 0) {
+      saveGeneratedFiles(newId, platform, variation.files).catch(console.error);
+    }
+
+    connectNodes(previewSourceNodeId!, newId);
+
+    return { id: newId, x, y, width: nodeWidth, height: nodeHeight };
+  };
+
+  const handleSelect = (variation: UIVariation) => {
+    if (!previewSourceNodeId) return;
+    const currentNodes = useCanvasStore.getState().nodes;
+    const sourceNode = currentNodes.find((n) => n.id === previewSourceNodeId);
+    if (!sourceNode) return;
+
+    createNodeFromVariation(variation, currentNodes, sourceNode);
+    closePreviewPanel();
   };
 
   const handleSelectAll = () => {
-    // When selecting all, we want to place them in a more organized way
-    // We'll add them one by one, which findFreePosition will handle 
-    // because it uses the latest 'nodes' state (if we handle the state correctly)
-    
-    // However, since addNode is async-ish (zustand state update), 
-    // let's do it with a local copy of nodes to ensure no overlap between the new ones
+    if (!previewSourceNodeId) return;
     const nodesFromStore = useCanvasStore.getState().nodes;
-    const currentNodes = [...nodesFromStore];
     const sourceNode = nodesFromStore.find((n) => n.id === previewSourceNodeId);
     if (!sourceNode) return;
 
-    const nodeWidth = 380;
-    const nodeHeight = 320;
-    const padding = 80;
+    const currentNodes = [...nodesFromStore];
 
     previewVariations.forEach((variation) => {
-      const { x, y } = findFreePosition(
-        currentNodes,
-        nodeWidth,
-        nodeHeight,
-        sourceNode.x + sourceNode.width + padding,
-        sourceNode.y,
-        padding
-      );
-
-      const newId = addNode({
-        type: 'design',
-        title: variation.label,
-        description: variation.description,
-        x,
-        y,
-        width: nodeWidth,
-        height: nodeHeight,
-        status: 'ready',
-        generatedCode: variation.code,
-        content: variation.previewHtml,
-        picked: true,
-        parentId: previewSourceNodeId,
-        pageRole: variation.category,
-      });
-
-      // Update local copy for next iteration
-      currentNodes.push({
-        id: newId,
-        type: 'design',
-        title: variation.label,
-        description: variation.description,
-        x,
-        y,
-        width: nodeWidth,
-        height: nodeHeight,
-        status: 'ready',
-        connectedTo: [previewSourceNodeId],
-        parentId: previewSourceNodeId
-      } as any);
-
-      connectNodes(previewSourceNodeId, newId);
-      togglePick(newId);
+      const created = createNodeFromVariation(variation, currentNodes, sourceNode);
+      currentNodes.push(created as any);
     });
 
     closePreviewPanel();
@@ -139,7 +107,6 @@ export const PreviewSelectionPanel = () => {
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.9, y: 20 }}
           >
-            {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-border">
               <div>
                 <h2 className="text-2xl font-black tracking-tight uppercase text-foreground">
@@ -165,7 +132,6 @@ export const PreviewSelectionPanel = () => {
               </div>
             </div>
 
-            {/* Grid of previews */}
             <div className="flex-1 overflow-y-auto p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {previewVariations.map((variation) => {
@@ -175,12 +141,8 @@ export const PreviewSelectionPanel = () => {
                       key={variation.id}
                       className="group rounded-2xl border border-border overflow-hidden bg-secondary/30 hover:border-primary/40 transition-all cursor-pointer"
                       whileHover={{ y: -4 }}
-                      onClick={() => {
-                        handleSelect(variation);
-                        closePreviewPanel();
-                      }}
+                      onClick={() => handleSelect(variation)}
                     >
-                      {/* Preview iframe */}
                       <div className="relative h-52 border-b border-border overflow-hidden">
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/80 border-b border-border">
                           <div className="flex gap-1">
@@ -197,7 +159,6 @@ export const PreviewSelectionPanel = () => {
                           style={{ transform: 'scale(0.5)', pointerEvents: 'none' }}
                           sandbox=""
                         />
-                        {/* Hover overlay */}
                         <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors flex items-center justify-center">
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                             <div className="w-12 h-12 rounded-2xl bg-primary/90 flex items-center justify-center">
@@ -207,7 +168,6 @@ export const PreviewSelectionPanel = () => {
                         </div>
                       </div>
 
-                      {/* Info */}
                       <div className="p-4">
                         <div className="flex items-center gap-2 mb-2">
                           <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">

@@ -124,18 +124,26 @@ export function ModelSelector({ className, showAuto = true, nodeId }: ModelSelec
                 ))
               ) : (
                 <>
-                  {["claude", "gemini", "gemini-flash", "gpt-4o"].map((fallbackId) => (
+                  {[
+                    { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4" },
+                    { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+                    { id: "openai/gpt-4o", name: "GPT-4o" },
+                    { id: "meta-llama/llama-4-maverick", name: "Llama 4 Maverick" },
+                  ].map((fallback) => (
                     <CommandItem
-                      key={fallbackId}
-                      value={fallbackId}
+                      key={fallback.id}
+                      value={fallback.id}
                       onSelect={() => {
-                        setAiModel(fallbackId);
+                        setAiModel(fallback.id);
                         setOpen(false);
                       }}
                       className="text-[10px] font-bold uppercase tracking-widest flex items-center justify-between cursor-pointer py-2.5 px-3 aria-selected:bg-primary/10"
                     >
-                      <span className="capitalize">{fallbackId.replace('-', ' ')}</span>
-                      {aiModel === fallbackId && <Check className="h-3.5 w-3.5 text-primary" />}
+                      <div className="flex flex-col truncate">
+                        <span>{fallback.name}</span>
+                        <span className="text-[8px] opacity-50 truncate">{fallback.id}</span>
+                      </div>
+                      {aiModel === fallback.id && <Check className="h-3.5 w-3.5 text-primary" />}
                     </CommandItem>
                   ))}
                 </>

@@ -852,10 +852,10 @@ export function getRandomVariation(
   title: string,
   description: string,
   platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database',
-  excludeId?: string
+  excludeCode?: string
 ): UIVariation {
   const all = generateFullPageVariations(title, description, platform);
-  const filtered = excludeId ? all.filter(v => v.id !== excludeId) : all;
+  const filtered = excludeCode ? all.filter(v => v.code !== excludeCode) : all;
   return filtered[Math.floor(Math.random() * filtered.length)] || all[0];
 }
 

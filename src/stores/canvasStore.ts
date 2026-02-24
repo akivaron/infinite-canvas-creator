@@ -2,14 +2,16 @@ import { create } from 'zustand';
 import { findFreePosition } from '@/lib/layout';
 
 export interface ElementLink {
-  /** CSS selector or data attribute identifying the element */
   selector: string;
-  /** Label shown in the editor */
   label: string;
-  /** Target node ID */
   targetNodeId: string;
-  /** Element type (e.g., 'form', 'button', 'input') */
   elementType?: string;
+}
+
+export interface GeneratedFileEntry {
+  path: string;
+  content: string;
+  language: string;
 }
 
 export interface CanvasNode {
@@ -28,28 +30,16 @@ export interface CanvasNode {
   connectedTo: string[];
   picked?: boolean;
   parentId?: string;
-  /** page role when assembled: header, hero, features, footer, etc. */
   pageRole?: string;
-  /** color tag for visual grouping */
   tag?: string;
-  /** platform target */
   platform?: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database' | 'env';
-  /** element-to-node links within the visual editor */
   elementLinks?: ElementLink[];
-  /** programming language for API/CLI nodes */
   language?: string;
-  /** environment variables for env nodes */
   envVars?: Record<string, string>;
-  /** specific AI model for this node */
   aiModel?: string;
-  /** generated file tree for this node */
   generatedFiles?: GeneratedFileEntry[];
-}
-
-export interface GeneratedFileEntry {
-  path: string;
-  content: string;
-  language: string;
+  isLocked?: boolean;
+  isCollapsed?: boolean;
 }
 
 export interface UIVariation {
@@ -75,17 +65,15 @@ interface CanvasState {
   aiModel: string;
   openRouterKey: string | null;
   availableModels: { id: string; name: string; free: boolean }[];
+  projectId: string | null;
 
-  // Preview selection
   previewPanelOpen: boolean;
   previewVariations: UIVariation[];
   previewSourceNodeId: string | null;
 
-  // Assembly
   assemblyPanelOpen: boolean;
-
-  // Connecting mode
   connectingFromId: string | null;
+  showClearConfirm: boolean;
 
   addNode: (node: Omit<CanvasNode, 'id' | 'connectedTo'>) => string;
   updateNode: (id: string, updates: Partial<CanvasNode>) => void;
@@ -113,12 +101,39 @@ interface CanvasState {
   cancelConnecting: () => void;
   disconnectNodes: (fromId: string, toId: string) => void;
   disconnectElementLink: (sourceNodeId: string, targetNodeId: string) => void;
+  setShowClearConfirm: (show: boolean) => void;
+  setProjectId: (id: string | null) => void;
 }
 
-let nodeCounter = 0;
+let nodeCounter = parseInt(localStorage.getItem('node_counter') || '0', 10);
+
+function getInitialDarkMode(): boolean {
+  const stored = localStorage.getItem('dark_mode');
+  if (stored !== null) return stored === 'true';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function loadPersistedNodes(): CanvasNode[] {
+  try {
+    const raw = localStorage.getItem('canvas_nodes');
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return [];
+}
+
+function persistNodes(nodes: CanvasNode[]) {
+  try {
+    const lite = nodes.map(n => {
+      const { generatedFiles, ...rest } = n;
+      return rest;
+    });
+    localStorage.setItem('canvas_nodes', JSON.stringify(lite));
+    localStorage.setItem('node_counter', String(nodeCounter));
+  } catch { /* storage full - ignore */ }
+}
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
-  nodes: [],
+  nodes: loadPersistedNodes(),
   zoom: 1,
   panX: 0,
   panY: 0,
@@ -126,37 +141,47 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   isDragging: false,
   dragNodeId: null,
   dragOffset: { x: 0, y: 0 },
-  darkMode: false,
+  darkMode: getInitialDarkMode(),
   aiModel: 'auto',
   openRouterKey: localStorage.getItem('openrouter_key'),
   availableModels: JSON.parse(localStorage.getItem('available_models') || '[]'),
+  projectId: localStorage.getItem('current_project_id'),
   previewPanelOpen: false,
   previewVariations: [],
   previewSourceNodeId: null,
   assemblyPanelOpen: false,
   connectingFromId: null,
+  showClearConfirm: false,
 
   addNode: (node) => {
     const id = `node-${++nodeCounter}-${Date.now()}`;
-    set((state) => ({
-      nodes: [...state.nodes, { ...node, id, connectedTo: [] }],
-    }));
+    set((state) => {
+      const newNodes = [...state.nodes, { ...node, id, connectedTo: [] }];
+      persistNodes(newNodes);
+      return { nodes: newNodes };
+    });
     return id;
   },
 
   updateNode: (id, updates) =>
-    set((state) => ({
-      nodes: state.nodes.map((n) => (n.id === id ? { ...n, ...updates } : n)),
-    })),
+    set((state) => {
+      const newNodes = state.nodes.map((n) => (n.id === id ? { ...n, ...updates } : n));
+      persistNodes(newNodes);
+      return { nodes: newNodes };
+    }),
 
   removeNode: (id) =>
-    set((state) => ({
-      nodes: state.nodes.filter((n) => n.id !== id).map((n) => ({
+    set((state) => {
+      const newNodes = state.nodes.filter((n) => n.id !== id).map((n) => ({
         ...n,
         connectedTo: n.connectedTo.filter((c) => c !== id),
-      })),
-      selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
-    })),
+      }));
+      persistNodes(newNodes);
+      return {
+        nodes: newNodes,
+        selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+      };
+    }),
 
   selectNode: (id) => set({ selectedNodeId: id }),
 
@@ -179,25 +204,32 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }));
   },
 
-  endDrag: () => set({ isDragging: false, dragNodeId: null }),
+  endDrag: () => {
+    set({ isDragging: false, dragNodeId: null });
+    persistNodes(get().nodes);
+  },
 
   connectNodes: (fromId, toId) =>
-    set((state) => ({
-      nodes: state.nodes.map((n) =>
+    set((state) => {
+      const newNodes = state.nodes.map((n) =>
         n.id === fromId && !n.connectedTo.includes(toId)
           ? { ...n, connectedTo: [...n.connectedTo, toId] }
           : n
-      ),
-    })),
+      );
+      persistNodes(newNodes);
+      return { nodes: newNodes };
+    }),
 
   disconnectNodes: (fromId, toId) =>
-    set((state) => ({
-      nodes: state.nodes.map((n) =>
+    set((state) => {
+      const newNodes = state.nodes.map((n) =>
         n.id === fromId
           ? { ...n, connectedTo: n.connectedTo.filter((c) => c !== toId) }
           : n
-      ),
-    })),
+      );
+      persistNodes(newNodes);
+      return { nodes: newNodes };
+    }),
 
   disconnectElementLink: (sourceId, targetId) =>
     set((state) => ({
@@ -213,7 +245,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const source = nodes.find((n) => n.id === id);
     if (!source) return;
     const newId = `node-${++nodeCounter}-${Date.now()}`;
-    
+
     const { x, y } = findFreePosition(
       nodes,
       source.width,
@@ -223,14 +255,26 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       40
     );
 
-    set((state) => ({
-      nodes: [...state.nodes, { ...source, id: newId, x, y, connectedTo: [], picked: false }],
-    }));
+    set((state) => {
+      const newNodes = [...state.nodes, { ...source, id: newId, x, y, connectedTo: [], picked: false }];
+      persistNodes(newNodes);
+      return { nodes: newNodes };
+    });
   },
 
-  clearAll: () => set({ nodes: [], selectedNodeId: null }),
+  clearAll: () => {
+    set({ nodes: [], selectedNodeId: null, showClearConfirm: false });
+    localStorage.removeItem('canvas_nodes');
+    localStorage.removeItem('node_counter');
+    nodeCounter = 0;
+  },
 
-  toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
+  toggleDarkMode: () =>
+    set((state) => {
+      const next = !state.darkMode;
+      localStorage.setItem('dark_mode', String(next));
+      return { darkMode: next };
+    }),
 
   setAiModel: (model: string) => set({ aiModel: model }),
 
@@ -273,4 +317,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   cancelConnecting: () => set({ connectingFromId: null }),
+
+  setShowClearConfirm: (show) => set({ showClearConfirm: show }),
+
+  setProjectId: (id) => {
+    if (id) localStorage.setItem('current_project_id', id);
+    else localStorage.removeItem('current_project_id');
+    set({ projectId: id });
+  },
 }));

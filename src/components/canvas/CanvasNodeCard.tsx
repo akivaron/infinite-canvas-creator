@@ -55,7 +55,7 @@ interface Props {
 export const CanvasNodeCard = ({ node }: Props) => {
   const {
     selectedNodeId, selectNode, startDrag, updateNode, removeNode, duplicateNode,
-    togglePick, connectingFromId, startConnecting, finishConnecting,
+    togglePick, connectingFromId, startConnecting, finishConnecting, cancelConnecting,
     addNode, connectNodes, setPan, setZoom, zoom, panX, panY,
     aiModel, setAiModel, availableModels,
   } = useCanvasStore();
@@ -135,19 +135,20 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
   /* ── Generate: create full-page variation nodes ── */
   const handleGenerate = useCallback(
-    async (platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database') => {
+    async (platform: 'web' | 'mobile' | 'api' | 'desktop' | 'cli' | 'database', language?: string) => {
       setShowPlatformPicker(false);
-      updateNode(node.id, { status: 'generating', platform });
+      updateNode(node.id, { status: 'generating', platform, ...(language ? { language } : {}) });
 
       const { aiModel: globalModel, openRouterKey } = useCanvasStore.getState();
       const nodeModel = node.aiModel || globalModel;
       const useAI = nodeModel !== 'auto' && openRouterKey;
+      const lang = language || node.language;
 
       try {
         let variations;
         if (useAI) {
           const promises = Array.from({ length: variationCount }).map(() =>
-            generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, nodeModel, node.language)
+            generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, nodeModel, lang)
           );
           variations = await Promise.all(promises);
         } else {
@@ -219,7 +220,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         updateNode(node.id, { status: 'idle' });
       }
     },
-    [node.id, node.title, node.description, node.x, node.y, node.width, node.aiModel, updateNode, addNode, connectNodes, setPan, zoom]
+    [node.id, node.title, node.description, node.x, node.y, node.width, node.aiModel, node.language, variationCount, updateNode, addNode, connectNodes, setPan, zoom]
   );
 
   /* ── Regenerate: swap content with a different full-page variation ── */
@@ -352,7 +353,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
         updateNode(node.id, { status: 'ready' });
       }
     },
-    [node.id, node.title, node.x, node.y, node.width, node.platform, node.aiModel, updateNode, addNode, connectNodes, setPan, zoom, subUiPrompt]
+    [node.id, node.title, node.x, node.y, node.width, node.platform, node.aiModel, node.language, variationCount, updateNode, addNode, connectNodes, setPan, zoom, subUiPrompt]
   );
 
   const handleRun = useCallback(
@@ -361,9 +362,10 @@ export const CanvasNodeCard = ({ node }: Props) => {
       updateNode(node.id, { status: 'running' });
       setTimeout(() => {
         const latestNodes = useCanvasStore.getState().nodes;
+        const latestNode = latestNodes.find(n => n.id === node.id);
         updateNode(node.id, { status: 'ready' });
-        const previewHtml = buildRunPreview(node.title, node.description);
-        
+        const previewHtml = latestNode?.content || latestNode?.generatedCode || buildRunPreview(node.title, node.description);
+
         const nodeWidth = 520;
         const nodeHeight = 460;
         const padding = 80;
@@ -447,10 +449,11 @@ export const CanvasNodeCard = ({ node }: Props) => {
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            if (connectingFromId && connectingFromId !== node.id) { finishConnecting(node.id); }
-            else if (!connectingFromId) { startConnecting(node.id); }
+            if (connectingFromId === node.id) { cancelConnecting(); }
+            else if (connectingFromId) { finishConnecting(node.id); }
+            else { startConnecting(node.id); }
           }}
-          title={connectingFromId ? 'Click to connect here' : 'Drag to connect'}
+          title={connectingFromId === node.id ? 'Click to cancel' : connectingFromId ? 'Click to connect here' : 'Click to connect'}
         />
         {/* Connection handles - right */}
         <button
@@ -464,10 +467,11 @@ export const CanvasNodeCard = ({ node }: Props) => {
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            if (connectingFromId && connectingFromId !== node.id) { finishConnecting(node.id); }
-            else if (!connectingFromId) { startConnecting(node.id); }
+            if (connectingFromId === node.id) { cancelConnecting(); }
+            else if (connectingFromId) { finishConnecting(node.id); }
+            else { startConnecting(node.id); }
           }}
-          title={connectingFromId ? 'Click to connect here' : 'Drag to connect'}
+          title={connectingFromId === node.id ? 'Click to cancel' : connectingFromId ? 'Click to connect here' : 'Click to connect'}
         />
 
         {/* Badges */}
@@ -494,7 +498,12 @@ export const CanvasNodeCard = ({ node }: Props) => {
                 <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{typeLabel}</span>
                 {node.platform && (
                   <span className="text-[8px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
-                    {node.platform === 'web' ? <Globe className="w-3 h-3" /> : <Smartphone className="w-3 h-3" />}
+                    {node.platform === 'web' && <Globe className="w-3 h-3" />}
+                    {node.platform === 'mobile' && <Smartphone className="w-3 h-3" />}
+                    {node.platform === 'api' && <Server className="w-3 h-3" />}
+                    {node.platform === 'cli' && <Terminal className="w-3 h-3" />}
+                    {node.platform === 'desktop' && <MonitorDot className="w-3 h-3" />}
+                    {node.platform === 'database' && <Database className="w-3 h-3" />}
                     {node.platform}
                   </span>
                 )}
@@ -709,9 +718,7 @@ export const CanvasNodeCard = ({ node }: Props) => {
                             key={lang.value}
                             onClick={() => {
                               setShowApiLangPicker(false);
-                              // Store language on the node, then generate
-                              updateNode(node.id, { language: lang.value } as any);
-                              handleGenerate('api');
+                              handleGenerate('api', lang.value);
                             }}
                             className={`py-2.5 rounded-xl border-2 ${lang.color} text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center`}
                           >
