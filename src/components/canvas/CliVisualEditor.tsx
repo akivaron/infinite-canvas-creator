@@ -303,11 +303,22 @@ export const CliVisualEditor = ({ node, onClose }: Props) => {
     updateSteps(newSteps);
   }, [selectedStepId, steps, updateSteps]);
 
-  // Save
   const saveToNode = useCallback(() => {
     const code = JSON.stringify(steps, null, 2);
     const preview = generateCliPreviewHtml(steps, node.title);
-    updateNode(node.id, { generatedCode: code, content: preview });
+
+    const generatedFiles = [
+      { path: 'cli-steps.json', content: code, language: 'json' },
+      { path: 'index.html', content: preview, language: 'html' },
+    ];
+
+    const allCode = generatedFiles.map(f => `// === ${f.path} ===\n${f.content}`).join('\n\n');
+
+    updateNode(node.id, {
+      generatedCode: allCode,
+      content: preview,
+      generatedFiles,
+    });
     setIsDirty(false);
   }, [steps, node.id, node.title, updateNode]);
 

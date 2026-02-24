@@ -271,11 +271,22 @@ export const ApiVisualEditor = ({ node, onClose }: Props) => {
     updateEndpoints(newEndpoints);
   }, [selectedEndpointId, endpoints, updateEndpoints]);
 
-  // Save to node
   const saveToNode = useCallback(() => {
     const code = JSON.stringify(endpoints, null, 2);
     const preview = generateApiPreviewHtml(endpoints, node.title);
-    updateNode(node.id, { generatedCode: code, content: preview });
+
+    const generatedFiles = [
+      { path: 'api-spec.json', content: code, language: 'json' },
+      { path: 'index.html', content: preview, language: 'html' },
+    ];
+
+    const allCode = generatedFiles.map(f => `// === ${f.path} ===\n${f.content}`).join('\n\n');
+
+    updateNode(node.id, {
+      generatedCode: allCode,
+      content: preview,
+      generatedFiles,
+    });
     setIsDirty(false);
   }, [endpoints, node.id, node.title, updateNode]);
 

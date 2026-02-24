@@ -182,7 +182,19 @@ export const PaymentVisualEditor = ({ node, onClose }: Props) => {
   const saveToNode = useCallback(() => {
     const code = JSON.stringify(config, null, 2);
     const preview = generatePaymentPreviewHtml(config, node.title);
-    updateNode(node.id, { generatedCode: code, content: preview });
+
+    const generatedFiles = [
+      { path: 'payment-config.json', content: code, language: 'json' },
+      { path: 'index.html', content: preview, language: 'html' },
+    ];
+
+    const allCode = generatedFiles.map(f => `// === ${f.path} ===\n${f.content}`).join('\n\n');
+
+    updateNode(node.id, {
+      generatedCode: allCode,
+      content: preview,
+      generatedFiles,
+    });
     setIsDirty(false);
   }, [config, node.id, node.title, updateNode]);
 

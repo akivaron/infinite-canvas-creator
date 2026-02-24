@@ -643,7 +643,19 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
   const saveToNode = useCallback(() => {
     const code = JSON.stringify({ ...schema, engine: dbEngine }, null, 2);
     const preview = generatePreviewHtml(schema.tables, schema.relations, node.title, dbEngine);
-    updateNode(node.id, { generatedCode: code, content: preview });
+
+    const generatedFiles = [
+      { path: 'schema.json', content: code, language: 'json' },
+      { path: 'index.html', content: preview, language: 'html' },
+    ];
+
+    const allCode = generatedFiles.map(f => `// === ${f.path} ===\n${f.content}`).join('\n\n');
+
+    updateNode(node.id, {
+      generatedCode: allCode,
+      content: preview,
+      generatedFiles,
+    });
     setIsDirty(false);
   }, [schema, dbEngine, node.id, node.title, updateNode]);
 

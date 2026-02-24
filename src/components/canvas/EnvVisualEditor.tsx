@@ -84,7 +84,22 @@ export const EnvVisualEditor: React.FC<Props> = ({ node, onClose }) => {
   }, [pushHistory]);
 
   const saveToNode = useCallback(() => {
-    updateNode(node.id, { envVars });
+    const envContent = Object.entries(envVars)
+      .map(([key, value]) => `${key}=${value}`)
+      .join('\n');
+
+    const generatedFiles = [
+      { path: '.env', content: envContent, language: 'env' },
+    ];
+
+    const allCode = `// === .env ===\n${envContent}`;
+
+    updateNode(node.id, {
+      envVars,
+      generatedCode: allCode,
+      content: envContent,
+      generatedFiles,
+    });
     setIsDirty(false);
   }, [envVars, node.id, updateNode]);
 
