@@ -6,6 +6,8 @@ import advancedRoutes from './routes/advanced.js';
 import ragRoutes from './routes/rag.js';
 import projectsRoutes from './routes/projects.js';
 import sandboxRoutes from './routes/sandbox.js';
+import mobileRoutes from './routes/mobile.js';
+import dbsandboxRoutes from './routes/dbsandbox.js';
 import { embeddingService } from './services/embeddingService.js';
 
 dotenv.config();
@@ -32,6 +34,8 @@ app.use('/api/advanced', advancedRoutes);
 app.use('/api/rag', ragRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/sandbox', sandboxRoutes);
+app.use('/api/mobile', mobileRoutes);
+app.use('/api/dbsandbox', dbsandboxRoutes);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
@@ -48,6 +52,8 @@ app.listen(PORT, () => {
   console.log(`  ✓ RAG API:         http://localhost:${PORT}/api/rag`);
   console.log(`  ✓ Projects API:    http://localhost:${PORT}/api/projects`);
   console.log(`  ✓ Sandbox API:     http://localhost:${PORT}/api/sandbox`);
+  console.log(`  ✓ Mobile API:      http://localhost:${PORT}/api/mobile`);
+  console.log(`  ✓ DB Sandbox API:  http://localhost:${PORT}/api/dbsandbox`);
   console.log(`  ✓ Advanced API:    http://localhost:${PORT}/api/advanced`);
   console.log('\nCore Features:');
   console.log('  • OpenRouter integration (backend proxy)');
@@ -56,6 +62,8 @@ app.listen(PORT, () => {
   console.log('  • Canvas node persistence & indexing');
   console.log('  • Project management with versioning');
   console.log('  • Isolated sandbox execution environment');
+  console.log('  • Mobile simulator with Expo support');
+  console.log('  • Database sandbox per user');
   console.log('  • Real-time collaboration support');
   console.log('  • Export/Import functionality');
   console.log('  • Context-aware code generation');
