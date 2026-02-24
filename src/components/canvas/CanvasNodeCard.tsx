@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { generateFullPageVariations, getRandomVariation, generateSubSections, generateFullPageWithAI, generateSubSectionsWithAI } from './generateVariations';
 import { findFreePosition } from '@/lib/layout';
 import { saveGeneratedFiles } from '@/lib/agents/fileStore';
+import { selectOptimalModel } from '@/lib/agents/modelSelector';
 import { VisualEditor } from './VisualEditor';
 import { ApiVisualEditor } from './ApiVisualEditor';
 import { CliVisualEditor } from './CliVisualEditor';
@@ -142,18 +143,21 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
       const { aiModel: globalModel, openRouterKey } = useCanvasStore.getState();
       const nodeModel = node.aiModel || globalModel;
-      const defaultModel = 'anthropic/claude-sonnet-4';
-      const effectiveModel = nodeModel === 'auto' ? defaultModel : nodeModel;
       const useAI = Boolean(openRouterKey);
       const lang = language || node.language;
 
-      console.log('[Generate] useAI:', useAI, 'apiKey:', openRouterKey ? 'SET' : 'NOT SET', 'model:', effectiveModel);
+      const effectiveModel = nodeModel === 'auto'
+        ? selectOptimalModel(node.title, node.description, platform, false)
+        : nodeModel;
+
+      console.log('[Generate] useAI:', useAI, 'apiKey:', openRouterKey ? 'SET' : 'NOT SET', 'model:', effectiveModel, 'autoSelected:', nodeModel === 'auto');
 
       try {
         let variations;
         if (useAI) {
+          const modelName = effectiveModel.split('/').pop();
           console.log('[Generate] Using AI generation with model:', effectiveModel);
-          toast.info(`Generating with AI (${effectiveModel.split('/').pop()})...`, { duration: 3000 });
+          toast.info(`Generating with ${nodeModel === 'auto' ? 'auto-selected ' : ''}${modelName}...`, { duration: 3000 });
           const promises = Array.from({ length: variationCount }).map(() =>
             generateFullPageWithAI(node.title, node.description, platform, openRouterKey!, effectiveModel, lang)
           );
@@ -247,14 +251,17 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
       const { aiModel: globalModel, openRouterKey } = useCanvasStore.getState();
       const nodeModel = node.aiModel || globalModel;
-      const defaultModel = 'anthropic/claude-sonnet-4';
-      const effectiveModel = nodeModel === 'auto' ? defaultModel : nodeModel;
       const useAI = Boolean(openRouterKey);
+
+      const effectiveModel = nodeModel === 'auto'
+        ? selectOptimalModel(node.title, node.description, node.platform!, false)
+        : nodeModel;
 
       try {
         let variation;
         if (useAI) {
-          toast.info(`Regenerating with AI...`, { duration: 2000 });
+          const modelName = effectiveModel.split('/').pop();
+          toast.info(`Regenerating with ${nodeModel === 'auto' ? 'auto-selected ' : ''}${modelName}...`, { duration: 2000 });
           variation = await generateFullPageWithAI(node.title, node.description, node.platform!, openRouterKey!, effectiveModel, node.language);
           if (variation.id.startsWith('ai-var-')) {
             toast.success('Regeneration complete!', { duration: 2000 });
@@ -300,20 +307,24 @@ export const CanvasNodeCard = ({ node }: Props) => {
 
       const { aiModel: globalModel, openRouterKey } = useCanvasStore.getState();
       const nodeModel = node.aiModel || globalModel;
-      const defaultModel = 'anthropic/claude-sonnet-4';
-      const effectiveModel = nodeModel === 'auto' ? defaultModel : nodeModel;
       const useAI = Boolean(openRouterKey);
+      const platform = node.platform || 'web';
+
+      const effectiveModel = nodeModel === 'auto'
+        ? selectOptimalModel(node.title, subUiPrompt, platform, true)
+        : nodeModel;
 
       try {
         let subSections;
         if (useAI) {
-          toast.info(`Generating sections with AI...`, { duration: 2000 });
-          subSections = await generateSubSectionsWithAI(node.title, node.platform || 'web', subUiPrompt, openRouterKey!, effectiveModel, variationCount);
+          const modelName = effectiveModel.split('/').pop();
+          toast.info(`Generating sections with ${nodeModel === 'auto' ? 'auto-selected ' : ''}${modelName}...`, { duration: 2000 });
+          subSections = await generateSubSectionsWithAI(node.title, platform, subUiPrompt, openRouterKey!, effectiveModel, variationCount);
           toast.success('Sections generated!', { duration: 2000 });
         } else {
           toast.info('Using static templates', { duration: 2000 });
           await new Promise(r => setTimeout(r, 1200));
-          subSections = generateSubSections(node.title, node.platform || 'web', subUiPrompt).slice(0, variationCount);
+          subSections = generateSubSections(node.title, platform, subUiPrompt).slice(0, variationCount);
         }
 
         updateNode(node.id, { status: 'ready' });
