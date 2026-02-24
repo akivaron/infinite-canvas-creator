@@ -1,11 +1,23 @@
-import { useCallback, useRef, useState, type MouseEvent, type WheelEvent } from 'react';
+import { useCallback, useRef, useState, useEffect, type MouseEvent, type WheelEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useCanvasStore } from '@/stores/canvasStore';
 import { CanvasNodeCard } from './CanvasNodeCard';
 import { CanvasConnections } from './CanvasConnections';
+import { SaveStatusBadge } from './SaveStatusIndicator';
+import { useAutosave } from '@/hooks/use-autosave';
 
 export const InfiniteCanvas = () => {
-  const { nodes, zoom, panX, panY, setZoom, setPan, isDragging, drag, endDrag, selectNode, connectingFromId, cancelConnecting } = useCanvasStore();
+  const { nodes, zoom, panX, panY, setZoom, setPan, isDragging, drag, endDrag, selectNode, connectingFromId, cancelConnecting, projectId } = useCanvasStore();
+
+  useAutosave({
+    enabled: true,
+    debounceMs: 2000,
+    onSave: (success, error) => {
+      if (!success && error) {
+        console.error('Autosave failed:', error);
+      }
+    },
+  });
   const canvasRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
@@ -187,6 +199,9 @@ export const InfiniteCanvas = () => {
       >
         {Math.round(zoom * 100)}%
       </motion.div>
+
+      {/* Save status badge */}
+      <SaveStatusBadge />
     </div>
   );
 };

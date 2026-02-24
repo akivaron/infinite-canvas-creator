@@ -139,6 +139,15 @@ function persistNodes(nodes: CanvasNode[]) {
   } catch { /* storage full - ignore */ }
 }
 
+function getOrCreateProjectId(): string {
+  let projectId = localStorage.getItem('current_project_id');
+  if (!projectId) {
+    projectId = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('current_project_id', projectId);
+  }
+  return projectId;
+}
+
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: loadPersistedNodes(),
   zoom: 1,
@@ -152,7 +161,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   aiModel: localStorage.getItem('ai_model') || 'auto',
   openRouterKey: localStorage.getItem('openrouter_key'),
   availableModels: JSON.parse(localStorage.getItem('available_models') || '[]'),
-  projectId: localStorage.getItem('current_project_id'),
+  projectId: getOrCreateProjectId(),
   previewPanelOpen: false,
   previewVariations: [],
   previewSourceNodeId: null,

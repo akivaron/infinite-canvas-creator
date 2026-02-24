@@ -10,6 +10,7 @@ import {
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { findFreePosition } from '@/lib/layout';
 import { SettingsModal } from './SettingsModal';
+import { SaveStatusIndicator } from './SaveStatusIndicator';
 
 /* ── Minimap ────────────────────────────────── */
 const Minimap = () => {
@@ -337,6 +338,8 @@ export const CanvasToolbar = () => {
           <span className="brand-label text-muted-foreground">
             {nodes.length} nodes
           </span>
+          <div className="h-4 w-px bg-border" />
+          <SaveStatusIndicator showText={false} />
         </div>
 
         {/* Search */}
