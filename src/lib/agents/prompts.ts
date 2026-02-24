@@ -114,6 +114,24 @@ Generate a well-structured API project with:
 - Configuration file
 - Package/dependency file
 
+IMPORTANT: You MUST also include a file called "api-spec.json" containing the API specification in this exact format:
+[
+  {
+    "id": "ep-1",
+    "method": "GET|POST|PUT|PATCH|DELETE",
+    "path": "/api/...",
+    "summary": "Description of the endpoint",
+    "tag": "Category tag",
+    "headers": [{ "id": "h1", "key": "Authorization", "type": "string", "required": true, "description": "Bearer token" }],
+    "queryParams": [{ "id": "q1", "key": "page", "type": "integer", "required": false, "description": "Page number" }],
+    "pathParams": [{ "id": "p1", "key": "id", "type": "string", "required": true, "description": "Resource ID" }],
+    "requestBody": "{ JSON schema string }",
+    "responseBody": "{ JSON schema string }",
+    "statusCode": 200,
+    "auth": "none|bearer|api-key|oauth2"
+  }
+]
+
 Also generate a previewHtml showing styled API documentation (endpoints, methods, request/response examples) in a dark-themed terminal style.
 
 Return JSON:
@@ -123,6 +141,7 @@ Return JSON:
   "category": "dashboard",
   "previewHtml": "<full self-contained HTML for API docs preview>",
   "files": [
+    { "path": "api-spec.json", "content": "[{...endpoints array...}]", "language": "json" },
     { "path": "src/index.${cfg.ext}", "content": "...", "language": "${lang}" },
     ...
   ]
@@ -176,6 +195,42 @@ Generate a CLI project with:
 - tsconfig.json
 - README.md
 
+IMPORTANT: You MUST also include a file called "cli-steps.json" containing the CLI workflow steps in this exact format:
+[
+  {
+    "id": "step-1",
+    "kind": "command|input|output|if|else|loop|variable|function|flag|arg|file-read|file-write|env-var|exit|error|spinner|prompt-select|prompt-confirm|table-output|progress|pipe|try-catch|delay|http-request|db-query|comment",
+    "label": "Step description",
+    "config": { "cmd": "command string", "name": "var name", "value": "default value", etc }
+  }
+]
+
+Each step kind has these config keys:
+- command: { "cmd": "shell command" }
+- input: { "prompt": "question", "name": "varName", "default": "value" }
+- output: { "message": "output text", "style": "info|success|warning|error" }
+- if/else: { "condition": "expression" }
+- loop: { "iterator": "item", "collection": "items" }
+- variable: { "name": "varName", "value": "value" }
+- function: { "name": "funcName", "params": "a,b,c", "body": "return a+b" }
+- flag: { "name": "--flag", "short": "-f", "description": "Flag desc", "type": "boolean|string" }
+- arg: { "name": "argName", "description": "Arg desc", "required": "true|false" }
+- file-read/file-write: { "path": "filepath", "encoding": "utf8" }
+- env-var: { "name": "ENV_VAR", "default": "value" }
+- exit: { "code": "0|1" }
+- error: { "message": "error text" }
+- spinner: { "message": "Loading...", "success": "Done!" }
+- prompt-select: { "message": "Choose:", "options": "opt1,opt2,opt3" }
+- prompt-confirm: { "message": "Are you sure?" }
+- table-output: { "headers": "col1,col2", "data": "JSON array" }
+- progress: { "total": "100", "message": "Processing..." }
+- pipe: { "from": "stepId", "to": "stepId" }
+- try-catch: { "try": "code", "catch": "errorHandler" }
+- delay: { "ms": "1000" }
+- http-request: { "url": "https://...", "method": "GET|POST", "body": "{}" }
+- db-query: { "query": "SELECT...", "connection": "connString" }
+- comment: { "text": "comment text" }
+
 Also generate a previewHtml showing a terminal-style preview of the CLI help output and example usage.
 
 Return JSON:
@@ -185,6 +240,7 @@ Return JSON:
   "category": "dashboard",
   "previewHtml": "<full self-contained HTML for CLI terminal preview>",
   "files": [
+    { "path": "cli-steps.json", "content": "[{...steps array...}]", "language": "json" },
     { "path": "src/index.ts", "content": "...", "language": "typescript" },
     ...
   ]
@@ -205,6 +261,45 @@ Generate a database project with:
 - drizzle.config.ts (or similar ORM config)
 - package.json
 
+IMPORTANT: You MUST also include a file called "schema.json" containing the database schema in this exact format:
+{
+  "engine": "sql|nosql|vector|graph|timeseries|keyvalue",
+  "tables": [
+    {
+      "id": "tbl-1",
+      "name": "table_name",
+      "kind": "table|collection|index|node|edge|bucket|measurement",
+      "x": 100,
+      "y": 100,
+      "color": "#3b82f6",
+      "columns": [
+        {
+          "id": "col-1",
+          "name": "column_name",
+          "type": "uuid|serial|text|varchar|integer|bigint|float|decimal|boolean|date|timestamp|timestamptz|json|jsonb|array|enum|bytea|object|objectId|string|number|map|reference|vector|embedding|sparse_vector|metadata|node_label|relationship|property|time|field|tag_ts|measurement|key|value|hash_kv|sorted_set|list_kv|ttl",
+          "isPrimary": true|false,
+          "isNullable": true|false,
+          "isUnique": true|false,
+          "defaultValue": "default value or empty string",
+          "reference": { "tableId": "tbl-x", "columnId": "col-x" } (optional, for foreign keys),
+          "dimension": 1536 (optional, for vector types)
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "id": "rel-1",
+      "fromTableId": "tbl-1",
+      "fromColumnId": "col-1",
+      "toTableId": "tbl-2",
+      "toColumnId": "col-1",
+      "type": "one-to-one|one-to-many|many-to-many|directed|bidirectional|weighted",
+      "label": "optional relation label"
+    }
+  ]
+}
+
 Also generate a previewHtml showing a visual representation of the database schema with tables, columns, types, and relationships in a dark-themed style.
 
 Return JSON:
@@ -214,6 +309,7 @@ Return JSON:
   "category": "dashboard",
   "previewHtml": "<full self-contained HTML for schema preview>",
   "files": [
+    { "path": "schema.json", "content": "{...schema object...}", "language": "json" },
     { "path": "migrations/001_create_tables.sql", "content": "...", "language": "sql" },
     ...
   ]
