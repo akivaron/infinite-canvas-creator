@@ -153,6 +153,23 @@ const defaultEndpoint = (): ApiEndpoint => ({
   auth: 'none',
 });
 
+function normalizeEndpoint(ep: Partial<ApiEndpoint>): ApiEndpoint {
+  return {
+    id: ep.id || newEndpointId(),
+    method: ep.method || 'GET',
+    path: ep.path || '/api/resource',
+    summary: ep.summary || '',
+    tag: ep.tag || 'General',
+    headers: Array.isArray(ep.headers) ? ep.headers : [],
+    queryParams: Array.isArray(ep.queryParams) ? ep.queryParams : [],
+    pathParams: Array.isArray(ep.pathParams) ? ep.pathParams : [],
+    requestBody: ep.requestBody || '',
+    responseBody: ep.responseBody || '{}',
+    statusCode: ep.statusCode || 200,
+    auth: ep.auth || 'none',
+  };
+}
+
 /* ─── Parse endpoints from node content ─── */
 function parseEndpoints(node: CanvasNode): ApiEndpoint[] {
   if (node.generatedFiles && node.generatedFiles.length > 0) {
@@ -160,7 +177,7 @@ function parseEndpoints(node: CanvasNode): ApiEndpoint[] {
     if (specFile) {
       try {
         const parsed = JSON.parse(specFile.content);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(normalizeEndpoint);
       } catch {}
     }
   }
@@ -170,13 +187,13 @@ function parseEndpoints(node: CanvasNode): ApiEndpoint[] {
     if (specMatch) {
       try {
         const parsed = JSON.parse(specMatch[1]);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(normalizeEndpoint);
       } catch {}
     }
 
     try {
       const parsed = JSON.parse(node.generatedCode);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) return parsed.map(normalizeEndpoint);
     } catch {}
   }
 
