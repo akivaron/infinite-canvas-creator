@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import swaggerUi from 'swagger-ui-express';
 import agentRoutes from './routes/agent.js';
 import advancedRoutes from './routes/advanced.js';
 import ragRoutes from './routes/rag.js';
@@ -10,6 +11,8 @@ import mobileRoutes from './routes/mobile.js';
 import dbsandboxRoutes from './routes/dbsandbox.js';
 import deployRoutes from './routes/deploy.js';
 import { embeddingService } from './services/embeddingService.js';
+import { swaggerSpec } from './config/swagger.js';
+import db from './config/database.js';
 
 dotenv.config();
 
@@ -26,8 +29,46 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 embeddingService.initialize().catch(console.error);
 
+db.testConnection().then((connected) => {
+  if (!connected) {
+    console.error('Failed to connect to PostgreSQL. Please check DATABASE_URL environment variable.');
+  }
+});
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Health check endpoint
+ *     description: Returns server health status and timestamp
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: ok
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ */
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'AI Canvas Platform API Documentation'
+}));
+
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
 });
 
 app.use('/api/agent', agentRoutes);
@@ -48,7 +89,10 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 app.listen(PORT, () => {
   console.log(`\n✓ Backend Server Running on Port ${PORT}\n`);
-  console.log('API Endpoints:');
+  console.log('API Documentation:');
+  console.log(`  ✓ Swagger UI:      http://localhost:${PORT}/api-docs`);
+  console.log(`  ✓ OpenAPI JSON:    http://localhost:${PORT}/api-docs.json`);
+  console.log('\nAPI Endpoints:');
   console.log(`  ✓ Health Check:    http://localhost:${PORT}/health`);
   console.log(`  ✓ Agent API:       http://localhost:${PORT}/api/agent`);
   console.log(`  ✓ RAG API:         http://localhost:${PORT}/api/rag`);
@@ -56,8 +100,11 @@ app.listen(PORT, () => {
   console.log(`  ✓ Sandbox API:     http://localhost:${PORT}/api/sandbox`);
   console.log(`  ✓ Mobile API:      http://localhost:${PORT}/api/mobile`);
   console.log(`  ✓ DB Sandbox API:  http://localhost:${PORT}/api/dbsandbox`);
+  console.log(`  ✓ Deploy API:      http://localhost:${PORT}/api/deploy`);
   console.log(`  ✓ Advanced API:    http://localhost:${PORT}/api/advanced`);
   console.log('\nCore Features:');
+  console.log('  • PostgreSQL with connection pooling');
+  console.log('  • OpenAPI/Swagger documentation');
   console.log('  • OpenRouter integration (backend proxy)');
   console.log('  • RAG with pgvector embeddings');
   console.log('  • Semantic code & canvas search');
@@ -66,6 +113,7 @@ app.listen(PORT, () => {
   console.log('  • Isolated sandbox execution environment');
   console.log('  • Mobile simulator with Expo support');
   console.log('  • Database sandbox per user');
+  console.log('  • Deployment system with Docker containers');
   console.log('  • Real-time collaboration support');
   console.log('  • Export/Import functionality');
   console.log('  • Context-aware code generation');

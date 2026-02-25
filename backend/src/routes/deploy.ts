@@ -1,12 +1,7 @@
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
+import db from '../config/database.js';
 
 const router = express.Router();
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 interface DockerContainer {
   id: string;
@@ -22,13 +17,12 @@ class DeploymentManager {
     try {
       await this.updateDeploymentStatus(deploymentId, 'building', 'Building web deployment...');
 
-      const { data: project } = await supabase
-        .from('canvas_projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
+      const projectResult = await db.query(
+        'SELECT * FROM canvas_projects WHERE id = $1',
+        [projectId]
+      );
 
-      if (!project) {
+      if (projectResult.rows.length === 0) {
         throw new Error('Project not found');
       }
 
@@ -103,20 +97,19 @@ class DeploymentManager {
 
       await this.simulateContainerBuild(deploymentId, containerName, containerPort, 'postgres:15');
 
-      const { error: envError } = await supabase
-        .from('deployments')
-        .update({
-          environment: {
+      await db.query(
+        `UPDATE deployments SET environment = $1 WHERE id = $2`,
+        [
+          JSON.stringify({
             DB_HOST: 'localhost',
             DB_PORT: containerPort.toString(),
             DB_USER: 'postgres',
             DB_PASSWORD: this.generatePassword(),
             DB_NAME: `db_${deploymentId.replace(/-/g, '_')}`,
-          },
-        })
-        .eq('id', deploymentId);
-
-      if (envError) throw envError;
+          }),
+          deploymentId
+        ]
+      );
 
       await this.updateDeploymentStatus(
         deploymentId,
@@ -142,23 +135,19 @@ class DeploymentManager {
 
   async stopDeployment(deploymentId: string) {
     try {
-      const { data: deployment } = await supabase
-        .from('deployments')
-        .select('container_id')
-        .eq('id', deploymentId)
-        .single();
+      const result = await db.query(
+        'SELECT container_id FROM deployments WHERE id = $1',
+        [deploymentId]
+      );
 
-      if (deployment?.container_id) {
-        this.containers.delete(deployment.container_id);
+      if (result.rows.length > 0 && result.rows[0].container_id) {
+        this.containers.delete(result.rows[0].container_id);
       }
 
-      await supabase
-        .from('deployments')
-        .update({
-          status: 'stopped',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', deploymentId);
+      await db.query(
+        'UPDATE deployments SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['stopped', deploymentId]
+      );
 
       return { success: true };
     } catch (error) {
@@ -209,7 +198,22 @@ class DeploymentManager {
     if (port) updates.port = port;
     if (status === 'running') updates.deployed_at = new Date().toISOString();
 
-    await supabase.from('deployments').update(updates).eq('id', deploymentId);
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    Object.entries(updates).forEach(([key, value]) => {
+      setClauses.push(`${key} = $${paramIndex}`);
+      values.push(value);
+      paramIndex++;
+    });
+
+    values.push(deploymentId);
+
+    await db.query(
+      `UPDATE deployments SET ${setClauses.join(', ')} WHERE id = $${paramIndex}`,
+      values
+    );
 
     if (logMessage) {
       await this.appendBuildLog(deploymentId, logMessage);
@@ -217,66 +221,71 @@ class DeploymentManager {
   }
 
   private async appendBuildLog(deploymentId: string, message: string) {
-    const { data: deployment } = await supabase
-      .from('deployments')
-      .select('build_logs')
-      .eq('id', deploymentId)
-      .single();
+    const result = await db.query(
+      'SELECT build_logs FROM deployments WHERE id = $1',
+      [deploymentId]
+    );
 
     const timestamp = new Date().toISOString();
     const logEntry = `[${timestamp}] ${message}\n`;
-    const newLogs = (deployment?.build_logs || '') + logEntry;
+    const newLogs = (result.rows[0]?.build_logs || '') + logEntry;
 
-    await supabase
-      .from('deployments')
-      .update({ build_logs: newLogs })
-      .eq('id', deploymentId);
+    await db.query(
+      'UPDATE deployments SET build_logs = $1 WHERE id = $2',
+      [newLogs, deploymentId]
+    );
   }
 
   private async initializeStorage(deploymentId: string) {
-    const { data: deployment } = await supabase
-      .from('deployments')
-      .select('user_id')
-      .eq('id', deploymentId)
-      .single();
+    const result = await db.query(
+      'SELECT user_id FROM deployments WHERE id = $1',
+      [deploymentId]
+    );
 
-    if (!deployment) return;
+    if (result.rows.length === 0) return;
 
+    const userId = result.rows[0].user_id;
     const storageTypes = ['code', 'static', 'logs'];
 
     for (const type of storageTypes) {
-      await supabase.from('deployment_storage').insert({
-        deployment_id: deploymentId,
-        user_id: deployment.user_id,
-        storage_type: type,
-        size_bytes: Math.floor(Math.random() * 10000000),
-        file_count: Math.floor(Math.random() * 100),
-        last_calculated: new Date().toISOString(),
-      });
+      await db.query(
+        `INSERT INTO deployment_storage (deployment_id, user_id, storage_type, size_bytes, file_count, last_calculated)
+         VALUES ($1, $2, $3, $4, $5, NOW())`,
+        [
+          deploymentId,
+          userId,
+          type,
+          Math.floor(Math.random() * 10000000),
+          Math.floor(Math.random() * 100)
+        ]
+      );
     }
   }
 
   private async startMetricsCollection(deploymentId: string) {
     setInterval(async () => {
-      const { data: deployment } = await supabase
-        .from('deployments')
-        .select('status')
-        .eq('id', deploymentId)
-        .single();
+      const result = await db.query(
+        'SELECT status FROM deployments WHERE id = $1',
+        [deploymentId]
+      );
 
-      if (deployment?.status !== 'running') return;
+      if (result.rows.length === 0 || result.rows[0].status !== 'running') return;
 
-      await supabase.from('deployment_metrics').insert({
-        deployment_id: deploymentId,
-        timestamp: new Date().toISOString(),
-        cpu_usage: Math.random() * 50,
-        memory_usage: Math.floor(Math.random() * 500000000),
-        bandwidth_in: Math.floor(Math.random() * 1000000),
-        bandwidth_out: Math.floor(Math.random() * 5000000),
-        requests_count: Math.floor(Math.random() * 100),
-        response_time_avg: Math.random() * 200,
-        error_count: Math.floor(Math.random() * 5),
-      });
+      await db.query(
+        `INSERT INTO deployment_metrics
+         (deployment_id, timestamp, cpu_usage, memory_usage, bandwidth_in, bandwidth_out, requests_count, response_time_avg, error_count)
+         VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          deploymentId,
+          Math.random() * 50,
+          Math.floor(Math.random() * 500000000),
+          Math.floor(Math.random() * 1000000),
+          Math.floor(Math.random() * 5000000),
+          Math.floor(Math.random() * 100),
+          Math.random() * 200,
+          Math.floor(Math.random() * 5)
+        ]
+      );
     }, 60000);
   }
 
@@ -296,6 +305,68 @@ class DeploymentManager {
 
 const deploymentManager = new DeploymentManager();
 
+/**
+ * @swagger
+ * /api/deploy/build:
+ *   post:
+ *     summary: Build and deploy a project
+ *     description: Creates a new deployment (web, api, or database) and starts the build process
+ *     tags: [Deployment]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - deployment_id
+ *               - deployment_type
+ *             properties:
+ *               deployment_id:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Unique deployment identifier
+ *               deployment_type:
+ *                 type: string
+ *                 enum: [web, api, database]
+ *                 description: Type of deployment
+ *               project_id:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Project ID (required for web/api)
+ *               config:
+ *                 type: object
+ *                 description: Deployment configuration
+ *                 properties:
+ *                   environment:
+ *                     type: object
+ *                     additionalProperties:
+ *                       type: string
+ *     responses:
+ *       200:
+ *         description: Deployment build started successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 port:
+ *                   type: integer
+ *       400:
+ *         description: Invalid request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Build failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/build', async (req, res) => {
   try {
     const { deployment_id, deployment_type, project_id, config } = req.body;
@@ -336,6 +407,33 @@ router.post('/build', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/deploy/stop:
+ *   post:
+ *     summary: Stop a running deployment
+ *     description: Stops a deployment and its container
+ *     tags: [Deployment]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - deployment_id
+ *             properties:
+ *               deployment_id:
+ *                 type: string
+ *                 format: uuid
+ *     responses:
+ *       200:
+ *         description: Deployment stopped successfully
+ *       400:
+ *         description: Missing deployment_id
+ *       500:
+ *         description: Stop failed
+ */
 router.post('/stop', async (req, res) => {
   try {
     const { deployment_id } = req.body;
@@ -354,29 +452,56 @@ router.post('/stop', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/deploy/health/{deployment_id}:
+ *   get:
+ *     summary: Check deployment health
+ *     description: Returns the health status of a deployment
+ *     tags: [Deployment]
+ *     parameters:
+ *       - in: path
+ *         name: deployment_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Health status retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 health:
+ *                   type: string
+ *                   enum: [healthy, unhealthy, unknown]
+ *       404:
+ *         description: Deployment not found
+ */
 router.get('/health/:deployment_id', async (req, res) => {
   try {
     const { deployment_id } = req.params;
 
-    const { data: deployment } = await supabase
-      .from('deployments')
-      .select('status, health_status, container_id')
-      .eq('id', deployment_id)
-      .single();
+    const result = await db.query(
+      'SELECT status, health_status, container_id FROM deployments WHERE id = $1',
+      [deployment_id]
+    );
 
-    if (!deployment) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Deployment not found' });
     }
 
+    const deployment = result.rows[0];
     const health_status = deployment.status === 'running' ? 'healthy' : 'unhealthy';
 
-    await supabase
-      .from('deployments')
-      .update({
-        health_status,
-        last_health_check: new Date().toISOString(),
-      })
-      .eq('id', deployment_id);
+    await db.query(
+      'UPDATE deployments SET health_status = $1, last_health_check = NOW() WHERE id = $2',
+      [health_status, deployment_id]
+    );
 
     res.json({ status: deployment.status, health: health_status });
   } catch (error) {
@@ -387,18 +512,52 @@ router.get('/health/:deployment_id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/deploy/calculate-storage:
+ *   post:
+ *     summary: Calculate deployment storage usage
+ *     description: Returns total storage usage for a deployment
+ *     tags: [Deployment]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - deployment_id
+ *             properties:
+ *               deployment_id:
+ *                 type: string
+ *                 format: uuid
+ *     responses:
+ *       200:
+ *         description: Storage calculated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total_bytes:
+ *                   type: integer
+ *                 storage:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ */
 router.post('/calculate-storage', async (req, res) => {
   try {
     const { deployment_id } = req.body;
 
-    const { data: storage } = await supabase
-      .from('deployment_storage')
-      .select('*')
-      .eq('deployment_id', deployment_id);
+    const result = await db.query(
+      'SELECT * FROM deployment_storage WHERE deployment_id = $1',
+      [deployment_id]
+    );
 
-    const total = storage?.reduce((sum, s) => sum + (s.size_bytes || 0), 0) || 0;
+    const total = result.rows.reduce((sum, s) => sum + (s.size_bytes || 0), 0);
 
-    res.json({ total_bytes: total, storage });
+    res.json({ total_bytes: total, storage: result.rows });
   } catch (error) {
     console.error('Calculate storage error:', error);
     res.status(500).json({
