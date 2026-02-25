@@ -11,6 +11,7 @@ import sandboxRoutes from './routes/sandbox.js';
 import mobileRoutes from './routes/mobile.js';
 import dbsandboxRoutes from './routes/dbsandbox.js';
 import deployRoutes from './routes/deploy.js';
+import domainsRoutes from './routes/domains.js';
 import { embeddingService } from './services/embeddingService.js';
 import { swaggerSpec } from './config/swagger.js';
 import db from './config/database.js';
@@ -133,6 +134,7 @@ app.use('/api/sandbox', sandboxRoutes);
 app.use('/api/mobile', mobileRoutes);
 app.use('/api/dbsandbox', dbsandboxRoutes);
 app.use('/api/deploy', deployRoutes);
+app.use('/api/domains', domainsRoutes);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
@@ -158,6 +160,7 @@ server.listen(PORT, () => {
   console.log(`  ✓ Mobile API:      http://localhost:${PORT}/api/mobile`);
   console.log(`  ✓ DB Sandbox API:  http://localhost:${PORT}/api/dbsandbox`);
   console.log(`  ✓ Deploy API:      http://localhost:${PORT}/api/deploy`);
+  console.log(`  ✓ Domains API:     http://localhost:${PORT}/api/domains`);
   console.log(`  ✓ Advanced API:    http://localhost:${PORT}/api/advanced`);
   console.log('\nCore Features:');
   console.log('  • WebSocket real-time notifications');

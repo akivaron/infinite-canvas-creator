@@ -147,6 +147,10 @@ For support, email support@aicanvas.com or visit our documentation at https://do
       {
         name: 'WebSocket',
         description: 'WebSocket connection management and statistics'
+      },
+      {
+        name: 'Domains',
+        description: 'Domain registration and management'
       }
     ],
     components: {

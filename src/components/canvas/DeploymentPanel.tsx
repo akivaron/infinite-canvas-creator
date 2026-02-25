@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { deployment, type Deployment, type HostingPlan } from '@/lib/deployment';
 import { useToast } from '@/hooks/use-toast';
 import { Card } from '@/components/ui/card';
+import { DomainManager } from './DomainManager';
+import { DomainList } from './DomainList';
 
 interface DeploymentPanelProps {
   projectId: string;
@@ -16,7 +18,7 @@ interface DeploymentPanelProps {
 }
 
 export function DeploymentPanel({ projectId, onClose }: DeploymentPanelProps) {
-  const [activeTab, setActiveTab] = useState<'deployments' | 'plans' | 'billing'>('deployments');
+  const [activeTab, setActiveTab] = useState<'deployments' | 'plans' | 'billing' | 'domains'>('deployments');
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [plans, setPlans] = useState<HostingPlan[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
@@ -167,6 +169,16 @@ export function DeploymentPanel({ projectId, onClose }: DeploymentPanelProps) {
           Deployments
         </button>
         <button
+          onClick={() => setActiveTab('domains')}
+          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+            activeTab === 'domains'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Domains
+        </button>
+        <button
           onClick={() => setActiveTab('plans')}
           className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
             activeTab === 'plans'
@@ -289,6 +301,30 @@ export function DeploymentPanel({ projectId, onClose }: DeploymentPanelProps) {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'domains' && (
+          <div className="space-y-4">
+            <DomainManager
+              userId="demo-user-id"
+              projectId={projectId}
+              onDomainPurchased={(domain) => {
+                toast({
+                  title: 'Domain Purchased',
+                  description: `${domain.domain_name} is now ready to use`,
+                });
+              }}
+            />
+            <DomainList
+              userId="demo-user-id"
+              onDomainSelect={(domain) => {
+                toast({
+                  title: 'Domain Selected',
+                  description: `Configuring ${domain.domain_name}`,
+                });
+              }}
+            />
           </div>
         )}
 
