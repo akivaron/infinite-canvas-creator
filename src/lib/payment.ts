@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { db } from './db';
 
 export type PaymentProvider = 'Stripe' | 'PayPal' | 'Paddle' | 'LemonSqueezy';
 
@@ -179,7 +179,7 @@ async function createPaddlePayment(params: Omit<CreatePaymentParams, 'provider'>
 }
 
 export async function getPaymentIntents(projectId?: string): Promise<PaymentIntent[]> {
-  let query = supabase.from('payment_intents').select('*').order('created_at', { ascending: false });
+  let query = db.from('payment_intents').select('*').order('created_at', { ascending: false });
 
   if (projectId) {
     query = query.eq('project_id', projectId);

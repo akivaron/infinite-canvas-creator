@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import db from '../config/database.js';
 import { embeddingService } from './embeddingService.js';
 import type { FileContext } from '../types/agent.js';
 
@@ -26,19 +26,6 @@ export interface RAGContext {
 }
 
 export class RAGService {
-  private supabase: SupabaseClient;
-
-  constructor() {
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase credentials not found');
-    }
-
-    this.supabase = createClient(supabaseUrl, supabaseKey);
-  }
-
   async indexCode(
     projectId: string,
     filePath: string,
@@ -49,33 +36,24 @@ export class RAGService {
       const preparedText = embeddingService.prepareCodeForEmbedding(content, filePath);
       const embedding = await embeddingService.generateEmbedding(preparedText);
 
-      const existingQuery = await this.supabase
-        .from('code_embeddings')
-        .select('id')
-        .eq('project_id', projectId)
-        .eq('file_path', filePath)
-        .maybeSingle();
+      const existingResult = await db.query(
+        'SELECT id FROM code_embeddings WHERE project_id = $1 AND file_path = $2',
+        [projectId, filePath]
+      );
 
-      if (existingQuery.data) {
-        await this.supabase
-          .from('code_embeddings')
-          .update({
-            content,
-            embedding: JSON.stringify(embedding),
-            metadata: metadata || {},
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existingQuery.data.id);
+      if (existingResult.rows.length > 0) {
+        await db.query(
+          `UPDATE code_embeddings
+           SET content = $1, embedding = $2, metadata = $3, updated_at = NOW()
+           WHERE id = $4`,
+          [content, JSON.stringify(embedding), metadata || {}, existingResult.rows[0].id]
+        );
       } else {
-        await this.supabase
-          .from('code_embeddings')
-          .insert({
-            project_id: projectId,
-            file_path: filePath,
-            content,
-            embedding: JSON.stringify(embedding),
-            metadata: metadata || {},
-          });
+        await db.query(
+          `INSERT INTO code_embeddings (project_id, file_path, content, embedding, metadata)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [projectId, filePath, content, JSON.stringify(embedding), metadata || {}]
+        );
       }
     } catch (error) {
       console.error('Error indexing code:', error);
@@ -83,60 +61,38 @@ export class RAGService {
     }
   }
 
-  async indexBatchCode(
-    projectId: string,
-    files: Array<{ path: string; content: string; metadata?: any }>
-  ): Promise<void> {
-    for (const file of files) {
-      await this.indexCode(projectId, file.path, file.content, file.metadata);
-    }
-  }
-
-  async indexCanvasNode(
+  async indexNode(
     projectId: string,
     nodeId: string,
     nodeType: string,
-    nodeData: any
+    content: string,
+    metadata?: any
   ): Promise<void> {
     try {
-      const preparedText = embeddingService.prepareCanvasNodeForEmbedding({
-        type: nodeType,
-        data: nodeData,
-      });
+      const preparedText = `${nodeType}: ${content}`;
       const embedding = await embeddingService.generateEmbedding(preparedText);
 
-      const existingQuery = await this.supabase
-        .from('canvas_node_embeddings')
-        .select('id')
-        .eq('node_id', nodeId)
-        .eq('project_id', projectId)
-        .maybeSingle();
+      const existingResult = await db.query(
+        'SELECT id FROM canvas_embeddings WHERE canvas_id = $1 AND node_id = $2',
+        [projectId, nodeId]
+      );
 
-      if (existingQuery.data) {
-        await this.supabase
-          .from('canvas_node_embeddings')
-          .update({
-            node_type: nodeType,
-            content: preparedText,
-            embedding: JSON.stringify(embedding),
-            metadata: nodeData || {},
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existingQuery.data.id);
+      if (existingResult.rows.length > 0) {
+        await db.query(
+          `UPDATE canvas_embeddings
+           SET content = $1, embedding = $2, metadata = $3, updated_at = NOW()
+           WHERE id = $4`,
+          [content, JSON.stringify(embedding), metadata || {}, existingResult.rows[0].id]
+        );
       } else {
-        await this.supabase
-          .from('canvas_node_embeddings')
-          .insert({
-            node_id: nodeId,
-            project_id: projectId,
-            node_type: nodeType,
-            content: preparedText,
-            embedding: JSON.stringify(embedding),
-            metadata: nodeData || {},
-          });
+        await db.query(
+          `INSERT INTO canvas_embeddings (canvas_id, node_id, content, embedding, metadata)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [projectId, nodeId, content, JSON.stringify(embedding), metadata || {}]
+        );
       }
     } catch (error) {
-      console.error('Error indexing canvas node:', error);
+      console.error('Error indexing node:', error);
       throw error;
     }
   }
@@ -144,23 +100,19 @@ export class RAGService {
   async indexConversationTurn(
     sessionId: string,
     turnId: string,
-    prompt: string,
-    response?: string,
+    content: string,
     metadata?: any
   ): Promise<void> {
     try {
-      const preparedText = embeddingService.prepareConversationForEmbedding(prompt, response);
-      const embedding = await embeddingService.generateEmbedding(preparedText);
+      const embedding = await embeddingService.generateEmbedding(content);
 
-      await this.supabase
-        .from('conversation_embeddings')
-        .insert({
-          session_id: sessionId,
-          turn_id: turnId,
-          content: preparedText,
-          embedding: JSON.stringify(embedding),
-          metadata: metadata || {},
-        });
+      await db.query(
+        `INSERT INTO agent_context_embeddings (session_id, turn_id, content, embedding, metadata)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (turn_id) DO UPDATE
+         SET content = $3, embedding = $4, metadata = $5, updated_at = NOW()`,
+        [sessionId, turnId, content, JSON.stringify(embedding), metadata || {}]
+      );
     } catch (error) {
       console.error('Error indexing conversation:', error);
       throw error;
@@ -168,218 +120,207 @@ export class RAGService {
   }
 
   async searchCode(
+    projectId: string,
     query: string,
-    projectId?: string,
-    topK: number = 5,
+    limit: number = 5,
     threshold: number = 0.7
-  ): Promise<RAGContext['relevantCode']> {
+  ) {
     try {
       const queryEmbedding = await embeddingService.generateEmbedding(query);
 
-      const { data, error } = await this.supabase.rpc('search_code_embeddings', {
-        query_embedding: JSON.stringify(queryEmbedding),
-        match_threshold: threshold,
-        match_count: topK,
-        filter_project_id: projectId || null,
-      });
+      const result = await db.query(
+        `SELECT
+          file_path,
+          content,
+          metadata,
+          1 - (embedding::vector <=> $1::vector) as similarity
+         FROM code_embeddings
+         WHERE project_id = $2
+           AND 1 - (embedding::vector <=> $1::vector) > $3
+         ORDER BY embedding::vector <=> $1::vector
+         LIMIT $4`,
+        [JSON.stringify(queryEmbedding), projectId, threshold, limit]
+      );
 
-      if (error) {
-        console.error('Error searching code:', error);
-        return [];
-      }
-
-      return (data || []).map((item: any) => ({
-        filePath: item.file_path,
-        content: item.content,
-        similarity: item.similarity,
-        metadata: item.metadata,
+      return result.rows.map(row => ({
+        filePath: row.file_path,
+        content: row.content,
+        similarity: row.similarity,
+        metadata: row.metadata
       }));
     } catch (error) {
-      console.error('Error in searchCode:', error);
+      console.error('Error searching code:', error);
       return [];
     }
   }
 
-  async searchCanvasNodes(
+  async searchNodes(
+    projectId: string,
     query: string,
-    projectId?: string,
-    topK: number = 5,
+    limit: number = 5,
     threshold: number = 0.7
-  ): Promise<RAGContext['relevantNodes']> {
+  ) {
     try {
       const queryEmbedding = await embeddingService.generateEmbedding(query);
 
-      const { data, error } = await this.supabase.rpc('search_canvas_node_embeddings', {
-        query_embedding: JSON.stringify(queryEmbedding),
-        match_threshold: threshold,
-        match_count: topK,
-        filter_project_id: projectId || null,
-      });
+      const result = await db.query(
+        `SELECT
+          node_id,
+          content,
+          metadata,
+          1 - (embedding::vector <=> $1::vector) as similarity
+         FROM canvas_embeddings
+         WHERE canvas_id = $2
+           AND 1 - (embedding::vector <=> $1::vector) > $3
+         ORDER BY embedding::vector <=> $1::vector
+         LIMIT $4`,
+        [JSON.stringify(queryEmbedding), projectId, threshold, limit]
+      );
 
-      if (error) {
-        console.error('Error searching canvas nodes:', error);
-        return [];
-      }
-
-      return (data || []).map((item: any) => ({
-        nodeId: item.node_id,
-        nodeType: item.node_type,
-        content: item.content,
-        similarity: item.similarity,
-        metadata: item.metadata,
+      return result.rows.map(row => ({
+        nodeId: row.node_id,
+        nodeType: row.metadata?.nodeType || 'unknown',
+        content: row.content,
+        similarity: row.similarity,
+        metadata: row.metadata
       }));
     } catch (error) {
-      console.error('Error in searchCanvasNodes:', error);
+      console.error('Error searching nodes:', error);
       return [];
     }
   }
 
   async searchConversations(
+    sessionId: string,
     query: string,
-    sessionId?: string,
-    topK: number = 3,
+    limit: number = 5,
     threshold: number = 0.7
-  ): Promise<RAGContext['relevantConversations']> {
+  ) {
     try {
       const queryEmbedding = await embeddingService.generateEmbedding(query);
 
-      const { data, error } = await this.supabase.rpc('search_conversation_embeddings', {
-        query_embedding: JSON.stringify(queryEmbedding),
-        match_threshold: threshold,
-        match_count: topK,
-        filter_session_id: sessionId || null,
-      });
+      const result = await db.query(
+        `SELECT
+          turn_id,
+          content,
+          metadata,
+          1 - (embedding::vector <=> $1::vector) as similarity
+         FROM agent_context_embeddings
+         WHERE session_id = $2
+           AND 1 - (embedding::vector <=> $1::vector) > $3
+         ORDER BY embedding::vector <=> $1::vector
+         LIMIT $4`,
+        [JSON.stringify(queryEmbedding), sessionId, threshold, limit]
+      );
 
-      if (error) {
-        console.error('Error searching conversations:', error);
-        return [];
-      }
-
-      return (data || []).map((item: any) => ({
-        turnId: item.turn_id,
-        content: item.content,
-        similarity: item.similarity,
-        metadata: item.metadata,
+      return result.rows.map(row => ({
+        turnId: row.turn_id,
+        content: row.content,
+        similarity: row.similarity,
+        metadata: row.metadata
       }));
     } catch (error) {
-      console.error('Error in searchConversations:', error);
+      console.error('Error searching conversations:', error);
       return [];
     }
   }
 
-  async buildRAGContext(
+  async getRAGContext(
+    projectId: string,
+    sessionId: string,
     query: string,
-    projectId?: string,
-    sessionId?: string,
     options?: {
-      includeCode?: boolean;
-      includeNodes?: boolean;
-      includeConversations?: boolean;
-      codeTopK?: number;
-      nodesTopK?: number;
-      conversationsTopK?: number;
+      codeLimit?: number;
+      nodeLimit?: number;
+      conversationLimit?: number;
+      threshold?: number;
     }
   ): Promise<RAGContext> {
     const {
-      includeCode = true,
-      includeNodes = true,
-      includeConversations = true,
-      codeTopK = 5,
-      nodesTopK = 3,
-      conversationsTopK = 2,
+      codeLimit = 5,
+      nodeLimit = 5,
+      conversationLimit = 5,
+      threshold = 0.7
     } = options || {};
 
     const [relevantCode, relevantNodes, relevantConversations] = await Promise.all([
-      includeCode ? this.searchCode(query, projectId, codeTopK) : Promise.resolve([]),
-      includeNodes ? this.searchCanvasNodes(query, projectId, nodesTopK) : Promise.resolve([]),
-      includeConversations ? this.searchConversations(query, sessionId, conversationsTopK) : Promise.resolve([]),
+      this.searchCode(projectId, query, codeLimit, threshold),
+      this.searchNodes(projectId, query, nodeLimit, threshold),
+      this.searchConversations(sessionId, query, conversationLimit, threshold)
     ]);
 
-    const summary = this.generateContextSummary(relevantCode, relevantNodes, relevantConversations);
+    const summary = this.generateSummary(relevantCode, relevantNodes, relevantConversations);
 
     return {
       relevantCode,
       relevantNodes,
       relevantConversations,
-      summary,
+      summary
     };
   }
 
-  private generateContextSummary(
-    relevantCode: RAGContext['relevantCode'],
-    relevantNodes: RAGContext['relevantNodes'],
-    relevantConversations: RAGContext['relevantConversations']
+  private generateSummary(
+    code: any[],
+    nodes: any[],
+    conversations: any[]
   ): string {
     const parts: string[] = [];
 
-    if (relevantCode.length > 0) {
-      parts.push(`Found ${relevantCode.length} relevant code files:`);
-      relevantCode.forEach((item, index) => {
-        parts.push(`  ${index + 1}. ${item.filePath} (similarity: ${(item.similarity * 100).toFixed(1)}%)`);
-      });
+    if (code.length > 0) {
+      parts.push(`Found ${code.length} relevant code files`);
     }
 
-    if (relevantNodes.length > 0) {
-      parts.push(`\nFound ${relevantNodes.length} relevant canvas nodes:`);
-      relevantNodes.forEach((item, index) => {
-        parts.push(`  ${index + 1}. ${item.nodeType} node (similarity: ${(item.similarity * 100).toFixed(1)}%)`);
-      });
+    if (nodes.length > 0) {
+      parts.push(`Found ${nodes.length} relevant canvas nodes`);
     }
 
-    if (relevantConversations.length > 0) {
-      parts.push(`\nFound ${relevantConversations.length} relevant past conversations`);
+    if (conversations.length > 0) {
+      parts.push(`Found ${conversations.length} relevant conversation turns`);
     }
 
-    return parts.join('\n') || 'No relevant context found';
-  }
-
-  async enhancePromptWithRAG(
-    prompt: string,
-    projectId?: string,
-    sessionId?: string
-  ): Promise<string> {
-    const ragContext = await this.buildRAGContext(prompt, projectId, sessionId);
-
-    let enhancedPrompt = prompt;
-
-    if (ragContext.relevantCode.length > 0) {
-      enhancedPrompt += '\n\n# Relevant Code Context\n';
-      ragContext.relevantCode.forEach((item, index) => {
-        enhancedPrompt += `\n## ${index + 1}. ${item.filePath}\n`;
-        enhancedPrompt += `\`\`\`\n${item.content.substring(0, 500)}\n\`\`\`\n`;
-      });
-    }
-
-    if (ragContext.relevantNodes.length > 0) {
-      enhancedPrompt += '\n\n# Relevant Canvas Nodes\n';
-      ragContext.relevantNodes.forEach((item, index) => {
-        enhancedPrompt += `\n## ${index + 1}. ${item.nodeType} Node\n`;
-        enhancedPrompt += `${item.content.substring(0, 300)}\n`;
-      });
-    }
-
-    if (ragContext.relevantConversations.length > 0) {
-      enhancedPrompt += '\n\n# Related Past Conversations\n';
-      ragContext.relevantConversations.forEach((item, index) => {
-        enhancedPrompt += `\n${index + 1}. ${item.content.substring(0, 200)}\n`;
-      });
-    }
-
-    return enhancedPrompt;
+    return parts.length > 0
+      ? parts.join('. ') + '.'
+      : 'No relevant context found.';
   }
 
   async deleteProjectEmbeddings(projectId: string): Promise<void> {
     await Promise.all([
-      this.supabase.from('code_embeddings').delete().eq('project_id', projectId),
-      this.supabase.from('canvas_node_embeddings').delete().eq('project_id', projectId),
+      db.query('DELETE FROM code_embeddings WHERE project_id = $1', [projectId]),
+      db.query('DELETE FROM canvas_embeddings WHERE canvas_id = $1', [projectId])
     ]);
   }
 
   async deleteSessionEmbeddings(sessionId: string): Promise<void> {
-    await this.supabase
-      .from('conversation_embeddings')
-      .delete()
-      .eq('session_id', sessionId);
+    await db.query('DELETE FROM agent_context_embeddings WHERE session_id = $1', [sessionId]);
+  }
+
+  async batchIndexCode(
+    projectId: string,
+    files: Array<{ filePath: string; content: string; metadata?: any }>
+  ): Promise<void> {
+    await Promise.all(
+      files.map(file =>
+        this.indexCode(projectId, file.filePath, file.content, file.metadata)
+      )
+    );
+  }
+
+  async getProjectStats(projectId: string) {
+    const [codeResult, nodeResult] = await Promise.all([
+      db.query(
+        'SELECT COUNT(*) as count FROM code_embeddings WHERE project_id = $1',
+        [projectId]
+      ),
+      db.query(
+        'SELECT COUNT(*) as count FROM canvas_embeddings WHERE canvas_id = $1',
+        [projectId]
+      )
+    ]);
+
+    return {
+      codeFiles: parseInt(codeResult.rows[0]?.count || '0'),
+      nodes: parseInt(nodeResult.rows[0]?.count || '0')
+    };
   }
 }
 

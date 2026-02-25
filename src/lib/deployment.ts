@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { db } from './db';
 
 export interface Deployment {
   id: string;
@@ -85,10 +85,10 @@ export const deployment = {
     error?: string;
   }> {
     try {
-      const user = (await supabase.auth.getUser()).data.user;
+      const user = (await db.auth.getUser()).data.user;
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase.rpc('get_active_subscription', {
+      const { data, error } = await db.rpc('get_active_subscription', {
         p_user_id: user.id,
       });
 
@@ -109,10 +109,10 @@ export const deployment = {
     billingCycle: 'monthly' | 'yearly'
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const user = (await supabase.auth.getUser()).data.user;
+      const user = (await db.auth.getUser()).data.user;
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase.from('user_subscriptions').insert({
+      const { error } = await db.from('user_subscriptions').insert({
         user_id: user.id,
         plan_id: planId,
         billing_cycle: billingCycle,
@@ -140,10 +140,10 @@ export const deployment = {
     deploymentType: 'web' | 'api' | 'database'
   ): Promise<{ success: boolean; canDeploy: boolean; reason?: string; error?: string }> {
     try {
-      const user = (await supabase.auth.getUser()).data.user;
+      const user = (await db.auth.getUser()).data.user;
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase.rpc('can_user_deploy', {
+      const { data, error } = await db.rpc('can_user_deploy', {
         p_user_id: user.id,
         p_deployment_type: deploymentType,
       });
@@ -171,7 +171,7 @@ export const deployment = {
     config: Record<string, any> = {}
   ): Promise<{ success: boolean; deployment?: Deployment; error?: string }> {
     try {
-      const user = (await supabase.auth.getUser()).data.user;
+      const user = (await db.auth.getUser()).data.user;
       if (!user) throw new Error('Not authenticated');
 
       const canDeployResult = await this.canDeploy(deploymentType);
@@ -179,7 +179,7 @@ export const deployment = {
         throw new Error(canDeployResult.reason || 'Cannot deploy');
       }
 
-      const { data: subdomainData, error: subdomainError } = await supabase.rpc(
+      const { data: subdomainData, error: subdomainError } = await db.rpc(
         'generate_subdomain',
         { p_prefix: deploymentType }
       );
@@ -345,10 +345,10 @@ export const deployment = {
     error?: string;
   }> {
     try {
-      const user = (await supabase.auth.getUser()).data.user;
+      const user = (await db.auth.getUser()).data.user;
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase.rpc('calculate_user_storage', {
+      const { data, error } = await db.rpc('calculate_user_storage', {
         p_user_id: user.id,
       });
 
@@ -414,10 +414,10 @@ export const deployment = {
     domain: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const user = (await supabase.auth.getUser()).data.user;
+      const user = (await db.auth.getUser()).data.user;
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase.from('deployment_domains').insert({
+      const { error } = await db.from('deployment_domains').insert({
         deployment_id: deploymentId,
         user_id: user.id,
         domain,

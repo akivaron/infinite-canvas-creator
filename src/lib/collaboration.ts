@@ -1,5 +1,4 @@
-import { supabase } from './supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { db } from './db';
 
 export interface Collaborator {
   id: string;
@@ -48,391 +47,295 @@ export interface Activity {
   user_id: string | null;
   action_type: string;
   entity_type: string;
-  entity_id: string | null;
-  details: Record<string, any>;
+  entity_id?: string;
+  metadata?: any;
   created_at: string;
 }
 
-const USER_COLORS = [
-  '#3b82f6', // blue
-  '#ef4444', // red
-  '#10b981', // green
-  '#f59e0b', // amber
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#14b8a6', // teal
-  '#f97316', // orange
-];
+export async function getProjectCollaborators(projectId: string): Promise<Collaborator[]> {
+  try {
+    const result = await db.from('project_collaborators')
+      .select('*')
+      .eq('project_id', projectId)
+      .execute();
 
-function getUserColor(userId: string): string {
-  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return USER_COLORS[hash % USER_COLORS.length];
+    return result.data || [];
+  } catch (error) {
+    console.error('Error fetching collaborators:', error);
+    return [];
+  }
 }
 
-export const collaboration = {
-  async inviteUser(
-    projectId: string,
-    email: string,
-    role: 'editor' | 'viewer'
-  ): Promise<{ success: boolean; invitation?: Invitation; error?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from('project_invitations')
-        .insert({
-          project_id: projectId,
-          email,
-          role,
-          invited_by: (await supabase.auth.getUser()).data.user?.id,
-        })
-        .select()
-        .single();
+export async function inviteCollaborator(
+  projectId: string,
+  email: string,
+  role: 'editor' | 'viewer',
+  userId: string
+): Promise<Invitation | null> {
+  try {
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      if (error) throw error;
-
-      await supabase.from('project_activity').insert({
+    const result = await db.from('project_invitations')
+      .insert({
         project_id: projectId,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
-        action_type: 'invited',
-        entity_type: 'user',
-        details: { email, role },
-      });
+        email,
+        role,
+        token,
+        invited_by: userId,
+        expires_at: expiresAt,
+        status: 'pending'
+      })
+      .execute();
 
-      return { success: true, invitation: data };
-    } catch (error) {
-      console.error('Error inviting user:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to invite user',
-      };
+    if (result.error) {
+      throw result.error;
     }
-  },
 
-  async acceptInvitation(
-    token: string
-  ): Promise<{ success: boolean; projectId?: string; error?: string }> {
-    try {
-      const { data, error } = await supabase.rpc('accept_invitation', {
-        p_token: token,
-      });
-
-      if (error) throw error;
-
-      if (data?.success) {
-        return { success: true, projectId: data.project_id };
-      }
-
-      return { success: false, error: data?.error || 'Failed to accept invitation' };
-    } catch (error) {
-      console.error('Error accepting invitation:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to accept invitation',
-      };
-    }
-  },
-
-  async revokeInvitation(
-    invitationId: string
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const { error } = await supabase
-        .from('project_invitations')
-        .update({ status: 'revoked' })
-        .eq('id', invitationId);
-
-      if (error) throw error;
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error revoking invitation:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to revoke invitation',
-      };
-    }
-  },
-
-  async listInvitations(
-    projectId: string
-  ): Promise<{ success: boolean; invitations?: Invitation[]; error?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from('project_invitations')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      return { success: true, invitations: data || [] };
-    } catch (error) {
-      console.error('Error listing invitations:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to list invitations',
-      };
-    }
-  },
-
-  async listCollaborators(
-    projectId: string
-  ): Promise<{ success: boolean; collaborators?: Collaborator[]; error?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from('project_collaborators')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('status', 'accepted')
-        .order('joined_at', { ascending: true });
-
-      if (error) throw error;
-
-      return { success: true, collaborators: data || [] };
-    } catch (error) {
-      console.error('Error listing collaborators:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to list collaborators',
-      };
-    }
-  },
-
-  async removeCollaborator(
-    collaboratorId: string,
-    projectId: string
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const { error } = await supabase
-        .from('project_collaborators')
-        .delete()
-        .eq('id', collaboratorId);
-
-      if (error) throw error;
-
-      await supabase.from('project_activity').insert({
+    await db.from('project_activity')
+      .insert({
         project_id: projectId,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
-        action_type: 'removed',
+        user_id: userId,
+        action_type: 'invite_sent',
+        entity_type: 'invitation',
+        metadata: { email, role }
+      })
+      .execute();
+
+    return result.data?.[0] || null;
+  } catch (error) {
+    console.error('Error inviting collaborator:', error);
+    return null;
+  }
+}
+
+export async function acceptInvitation(token: string, userId: string): Promise<boolean> {
+  try {
+    const invitationResult = await db.from('project_invitations')
+      .select('*')
+      .eq('token', token)
+      .eq('status', 'pending')
+      .single();
+
+    if (!invitationResult.data) {
+      throw new Error('Invitation not found or already accepted');
+    }
+
+    const invitation = invitationResult.data;
+
+    if (new Date(invitation.expires_at) < new Date()) {
+      await db.from('project_invitations')
+        .update({ status: 'expired' })
+        .eq('id', invitation.id)
+        .execute();
+      throw new Error('Invitation has expired');
+    }
+
+    await db.from('project_collaborators')
+      .insert({
+        project_id: invitation.project_id,
+        user_id: userId,
+        role: invitation.role,
+        invited_by: invitation.invited_by,
+        status: 'accepted',
+        accepted_at: new Date().toISOString()
+      })
+      .execute();
+
+    await db.from('project_invitations')
+      .update({
+        status: 'accepted',
+        accepted_at: new Date().toISOString()
+      })
+      .eq('id', invitation.id)
+      .execute();
+
+    await db.from('project_activity')
+      .insert({
+        project_id: invitation.project_id,
+        user_id: userId,
+        action_type: 'invitation_accepted',
+        entity_type: 'collaborator'
+      })
+      .execute();
+
+    return true;
+  } catch (error) {
+    console.error('Error accepting invitation:', error);
+    return false;
+  }
+}
+
+export async function removeCollaborator(
+  projectId: string,
+  collaboratorId: string,
+  userId: string
+): Promise<boolean> {
+  try {
+    await db.from('project_collaborators')
+      .delete()
+      .eq('id', collaboratorId)
+      .execute();
+
+    await db.from('project_activity')
+      .insert({
+        project_id: projectId,
+        user_id: userId,
+        action_type: 'collaborator_removed',
         entity_type: 'collaborator',
-        entity_id: collaboratorId,
-      });
+        entity_id: collaboratorId
+      })
+      .execute();
 
-      return { success: true };
-    } catch (error) {
-      console.error('Error removing collaborator:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to remove collaborator',
-      };
-    }
-  },
+    return true;
+  } catch (error) {
+    console.error('Error removing collaborator:', error);
+    return false;
+  }
+}
 
-  async updateCollaboratorRole(
-    collaboratorId: string,
-    role: 'owner' | 'editor' | 'viewer'
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const { error } = await supabase
-        .from('project_collaborators')
-        .update({ role })
-        .eq('id', collaboratorId);
+export async function updateCollaboratorRole(
+  collaboratorId: string,
+  newRole: 'editor' | 'viewer'
+): Promise<boolean> {
+  try {
+    await db.from('project_collaborators')
+      .update({ role: newRole })
+      .eq('id', collaboratorId)
+      .execute();
 
-      if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error updating collaborator role:', error);
+    return false;
+  }
+}
 
-      return { success: true };
-    } catch (error) {
-      console.error('Error updating role:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to update role',
-      };
-    }
-  },
-
-  async updatePresence(
-    projectId: string,
-    cursorX: number,
-    cursorY: number,
-    selectedNodeId?: string
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const user = (await supabase.auth.getUser()).data.user;
-      if (!user) throw new Error('Not authenticated');
-
-      const { error } = await supabase.from('user_presence').upsert(
-        {
-          project_id: projectId,
-          user_id: user.id,
-          user_email: user.email,
-          cursor_x: cursorX,
-          cursor_y: cursorY,
-          selected_node_id: selectedNodeId || null,
-          color: getUserColor(user.id),
-          last_active: new Date().toISOString(),
-        },
-        { onConflict: 'project_id,user_id' }
-      );
-
-      if (error) throw error;
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error updating presence:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to update presence',
-      };
-    }
-  },
-
-  async removePresence(projectId: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      const user = (await supabase.auth.getUser()).data.user;
-      if (!user) throw new Error('Not authenticated');
-
-      const { error } = await supabase
-        .from('user_presence')
-        .delete()
-        .eq('project_id', projectId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error removing presence:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to remove presence',
-      };
-    }
-  },
-
-  async getActiveUsers(
-    projectId: string
-  ): Promise<{ success: boolean; users?: UserPresence[]; error?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from('user_presence')
-        .select('*')
-        .eq('project_id', projectId)
-        .gte('last_active', new Date(Date.now() - 5 * 60 * 1000).toISOString());
-
-      if (error) throw error;
-
-      return { success: true, users: data || [] };
-    } catch (error) {
-      console.error('Error getting active users:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get active users',
-      };
-    }
-  },
-
-  async getActivity(
-    projectId: string,
-    limit: number = 50
-  ): Promise<{ success: boolean; activities?: Activity[]; error?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from('project_activity')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (error) throw error;
-
-      return { success: true, activities: data || [] };
-    } catch (error) {
-      console.error('Error getting activity:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get activity',
-      };
-    }
-  },
-
-  async logActivity(
-    projectId: string,
-    actionType: string,
-    entityType: string,
-    entityId?: string,
-    details?: Record<string, any>
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const { error } = await supabase.from('project_activity').insert({
+export async function updateUserPresence(
+  projectId: string,
+  userId: string,
+  presence: Partial<UserPresence>
+): Promise<void> {
+  try {
+    await db.from('user_presence')
+      .upsert({
         project_id: projectId,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
+        user_id: userId,
+        ...presence,
+        last_active: new Date().toISOString()
+      })
+      .execute();
+  } catch (error) {
+    console.error('Error updating presence:', error);
+  }
+}
+
+export async function getActiveUsers(projectId: string): Promise<UserPresence[]> {
+  try {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+    const result = await db.from('user_presence')
+      .select('*')
+      .eq('project_id', projectId)
+      .gt('last_active', fiveMinutesAgo)
+      .execute();
+
+    return result.data || [];
+  } catch (error) {
+    console.error('Error fetching active users:', error);
+    return [];
+  }
+}
+
+export async function logActivity(
+  projectId: string,
+  userId: string,
+  actionType: string,
+  entityType: string,
+  entityId?: string,
+  metadata?: any
+): Promise<void> {
+  try {
+    await db.from('project_activity')
+      .insert({
+        project_id: projectId,
+        user_id: userId,
         action_type: actionType,
         entity_type: entityType,
-        entity_id: entityId || null,
-        details: details || {},
-      });
+        entity_id: entityId,
+        metadata: metadata
+      })
+      .execute();
+  } catch (error) {
+    console.error('Error logging activity:', error);
+  }
+}
 
-      if (error) throw error;
+export async function getProjectActivity(
+  projectId: string,
+  limit: number = 50
+): Promise<Activity[]> {
+  try {
+    const result = await db.from('project_activity')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+      .execute();
 
-      return { success: true };
-    } catch (error) {
-      console.error('Error logging activity:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to log activity',
-      };
-    }
-  },
+    return result.data || [];
+  } catch (error) {
+    console.error('Error fetching activity:', error);
+    return [];
+  }
+}
 
-  subscribeToPresence(
-    projectId: string,
-    onPresenceChange: (presences: UserPresence[]) => void
-  ): RealtimeChannel {
-    const channel = supabase
-      .channel(`presence:${projectId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_presence',
-          filter: `project_id=eq.${projectId}`,
-        },
-        async () => {
-          const result = await collaboration.getActiveUsers(projectId);
-          if (result.success && result.users) {
-            onPresenceChange(result.users);
-          }
-        }
-      )
-      .subscribe();
+export async function checkUserPermission(
+  projectId: string,
+  userId: string
+): Promise<'owner' | 'editor' | 'viewer' | null> {
+  try {
+    const result = await db.from('project_collaborators')
+      .select('role')
+      .eq('project_id', projectId)
+      .eq('user_id', userId)
+      .eq('status', 'accepted')
+      .single();
 
-    return channel;
-  },
+    return result.data?.role || null;
+  } catch (error) {
+    return null;
+  }
+}
 
-  subscribeToActivity(
-    projectId: string,
-    onActivityChange: (activity: Activity) => void
-  ): RealtimeChannel {
-    const channel = supabase
-      .channel(`activity:${projectId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'project_activity',
-          filter: `project_id=eq.${projectId}`,
-        },
-        (payload) => {
-          onActivityChange(payload.new as Activity);
-        }
-      )
-      .subscribe();
+export async function getPendingInvitations(projectId: string): Promise<Invitation[]> {
+  try {
+    const result = await db.from('project_invitations')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('status', 'pending')
+      .execute();
 
-    return channel;
-  },
+    return result.data || [];
+  } catch (error) {
+    console.error('Error fetching invitations:', error);
+    return [];
+  }
+}
 
-  unsubscribe(channel: RealtimeChannel) {
-    supabase.removeChannel(channel);
-  },
-};
+export const listInvitations = getPendingInvitations;
+export const inviteUser = inviteCollaborator;
+
+export async function revokeInvitation(invitationId: string): Promise<boolean> {
+  try {
+    await db.from('project_invitations')
+      .update({ status: 'revoked' })
+      .eq('id', invitationId)
+      .execute();
+
+    return true;
+  } catch (error) {
+    console.error('Error revoking invitation:', error);
+    return false;
+  }
+}

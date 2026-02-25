@@ -7,7 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCollaboration } from '@/hooks/use-collaboration';
-import { collaboration } from '@/lib/collaboration';
+import * as collaboration from '@/lib/collaboration';
 import { useToast } from '@/hooks/use-toast';
 
 interface CollaborationPanelProps {

@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { db } from './db';
 import type { CanvasNode } from '@/stores/canvasStore';
 
 export interface ProjectVersion {
@@ -51,16 +51,16 @@ export const versionControl = {
           },
           changes_summary: changesSummary,
           tag,
-          created_by: (await supabase.auth.getUser()).data.user?.id,
+          created_by: (await db.auth.getUser()).data.user?.id,
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      await supabase.from('project_activity').insert({
+      await db.from('project_activity').insert({
         project_id: projectId,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
+        user_id: (await db.auth.getUser()).data.user?.id,
         action_type: 'version_created',
         entity_type: 'version',
         entity_id: data.id,
@@ -149,9 +149,9 @@ export const versionControl = {
 
       if (updateError) throw updateError;
 
-      await supabase.from('project_activity').insert({
+      await db.from('project_activity').insert({
         project_id: projectId,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
+        user_id: (await db.auth.getUser()).data.user?.id,
         action_type: 'version_restored',
         entity_type: 'version',
         entity_id: versionId,
