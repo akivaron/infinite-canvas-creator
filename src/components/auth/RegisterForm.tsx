@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +23,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export const RegisterForm = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { signUp } = useAuth();
 
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -31,13 +32,7 @@ export const RegisterForm = () => {
   const onSubmit = async (data: RegisterFormData) => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-      });
-
-      if (error) throw error;
-
+      await signUp(data.email, data.password);
       toast.success('Account created successfully');
       navigate('/canvas');
     } catch (error: any) {

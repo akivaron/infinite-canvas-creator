@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export const LoginForm = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { signIn } = useAuth();
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -27,17 +28,11 @@ export const LoginForm = () => {
   const onSubmit = async (data: LoginFormData) => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      });
-
-      if (error) throw error;
-
-      toast.success('Login successful');
+      await signIn(data.email, data.password);
+      toast.success('Welcome back!');
       navigate('/canvas');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to login');
+      toast.error(error.message || 'Failed to sign in');
     } finally {
       setLoading(false);
     }

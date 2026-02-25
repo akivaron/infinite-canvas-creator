@@ -1,4 +1,3 @@
-import { db } from './db';
 import type { CanvasNode } from '@/stores/canvasStore';
 
 export interface ProjectVersion {

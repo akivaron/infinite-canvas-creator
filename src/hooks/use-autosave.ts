@@ -1,6 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useCanvasStore } from '@/stores/canvasStore';
-import { db } from '@/lib/db';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -28,7 +27,7 @@ export function useAutosave(options: AutosaveOptions = {}) {
   const previousNodesRef = useRef<string>('');
   const isSavingRef = useRef(false);
 
-  const saveToSupabase = useCallback(async () => {
+  const saveToLocalStorage = useCallback(async () => {
     if (!enabled || !projectId || isSavingRef.current) {
       return;
     }
@@ -44,80 +43,14 @@ export function useAutosave(options: AutosaveOptions = {}) {
       setSaveStatus('saving');
       setError(null);
 
-      // Upsert project to avoid duplicate primary key errors
-      await db.query(
-        `
-          INSERT INTO canvas_projects (id, name, nodes_data, created_at, updated_at)
-          VALUES ($1, $2, $3, NOW(), NOW())
-          ON CONFLICT (id) DO UPDATE
-          SET
-            nodes_data = EXCLUDED.nodes_data,
-            updated_at = NOW()
-        `,
-        // Store nodes as JSON string so Postgres json/jsonb columns get valid JSON
-        [projectId, 'Untitled Project', nodesJson]
-      );
+      const projectData = {
+        id: projectId,
+        name: 'Untitled Project',
+        nodes: nodes,
+        updatedAt: new Date().toISOString(),
+      };
 
-      for (const node of nodes) {
-        const { data: existingNode } = await db
-          .from('canvas_nodes')
-          .select('id')
-          .eq('id', node.id)
-          .maybeSingle();
-
-        const nodeData = {
-          id: node.id,
-          project_id: projectId,
-          type: node.type,
-          title: node.title,
-          description: node.description,
-          content: node.content || null,
-          position_x: node.x,
-          position_y: node.y,
-          width: node.width,
-          height: node.height,
-          status: node.status,
-          metadata: {
-            fileName: node.fileName,
-            generatedCode: node.generatedCode,
-            connectedTo: node.connectedTo,
-            picked: node.picked,
-            parentId: node.parentId,
-            pageRole: node.pageRole,
-            tag: node.tag,
-            platform: node.platform,
-            elementLinks: node.elementLinks,
-            language: node.language,
-            envVars: node.envVars,
-            aiModel: node.aiModel,
-            generatedFiles: node.generatedFiles,
-            isLocked: node.isLocked,
-            isCollapsed: node.isCollapsed,
-          },
-          updated_at: new Date().toISOString(),
-        };
-
-        if (existingNode) {
-          const { error: nodeError } = await db
-            .from('canvas_nodes')
-            .update(nodeData)
-            .eq('id', node.id)
-            .execute();
-
-          if (nodeError) {
-            console.error('Error updating node:', node.id, nodeError);
-          }
-        } else {
-          const { error: nodeError } = await db
-            .from('canvas_nodes')
-            .insert(nodeData)
-            .execute();
-
-          if (nodeError) {
-            console.error('Error inserting node:', node.id, nodeError);
-          }
-        }
-      }
+      localStorage.setItem(`project_${projectId}`, JSON.stringify(projectData));
 
       previousNodesRef.current = nodesJson;
       setSaveStatus('saved');
@@ -154,7 +87,7 @@ export function useAutosave(options: AutosaveOptions = {}) {
     }
 
     saveTimeoutRef.current = setTimeout(() => {
-      saveToSupabase();
+      saveToLocalStorage();
     }, debounceMs);
 
     return () => {
@@ -162,16 +95,16 @@ export function useAutosave(options: AutosaveOptions = {}) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [nodes, projectId, enabled, debounceMs, saveToSupabase]);
+  }, [nodes, projectId, enabled, debounceMs, saveToLocalStorage]);
 
   const forceSave = useCallback(async () => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    await saveToSupabase();
-  }, [saveToSupabase]);
+    await saveToLocalStorage();
+  }, [saveToLocalStorage]);
 
-  const loadFromSupabase = useCallback(async (loadProjectId?: string) => {
+  const loadFromLocalStorage = useCallback(async (loadProjectId?: string) => {
     const targetProjectId = loadProjectId || projectId;
 
     if (!targetProjectId) {
@@ -181,17 +114,12 @@ export function useAutosave(options: AutosaveOptions = {}) {
     try {
       setSaveStatus('saving');
 
-      const { data: project, error: projectError} = await db
-        .from('canvas_projects')
-        .select('nodes_data')
-        .eq('id', targetProjectId)
-        .maybeSingle();
+      const projectDataStr = localStorage.getItem(`project_${targetProjectId}`);
 
-      if (projectError) throw projectError;
-
-      if (project?.nodes_data) {
-        const loadedNodes = Array.isArray(project.nodes_data)
-          ? project.nodes_data
+      if (projectDataStr) {
+        const projectData = JSON.parse(projectDataStr);
+        const loadedNodes = Array.isArray(projectData.nodes)
+          ? projectData.nodes
           : [];
 
         useCanvasStore.setState({ nodes: loadedNodes });
@@ -220,6 +148,6 @@ export function useAutosave(options: AutosaveOptions = {}) {
     lastSaved,
     error,
     forceSave,
-    loadFromSupabase,
+    loadFromLocalStorage,
   };
 }

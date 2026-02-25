@@ -1,4 +1,3 @@
-import { db } from './db';
 
 export interface Deployment {
   id: string;

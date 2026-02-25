@@ -1,4 +1,3 @@
-import { db } from './db';
 
 export type PaymentProvider = 'Stripe' | 'PayPal' | 'Paddle' | 'LemonSqueezy';
 

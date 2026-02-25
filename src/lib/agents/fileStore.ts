@@ -1,23 +1,13 @@
-import { db } from '@/lib/db';
 import { useCanvasStore } from '@/stores/canvasStore';
 import type { GeneratedFile } from './types';
 
-const isDbConfigured = true;
-
-async function getOrCreateProjectId(): Promise<string | null> {
+function getOrCreateProjectId(): string {
   const store = useCanvasStore.getState();
   if (store.projectId) return store.projectId;
 
-  const { data } = await db
-    .from('projects')
-    .insert({ title: 'Untitled Project', description: '' })
-    .execute();
-
-  if (data && data.length > 0 && data[0]?.id) {
-    store.setProjectId(data[0].id);
-    return data[0].id;
-  }
-  return null;
+  const newProjectId = Date.now().toString();
+  store.setProjectId(newProjectId);
+  return newProjectId;
 }
 
 export async function saveGeneratedFiles(
@@ -25,32 +15,18 @@ export async function saveGeneratedFiles(
   platform: string,
   files: GeneratedFile[]
 ): Promise<void> {
-  if (!isDbConfigured) return;
-
   try {
-    const pid = await getOrCreateProjectId();
-    if (!pid) return;
+    const pid = getOrCreateProjectId();
 
-    await db
-      .from('generated_files')
-      .delete()
-      .eq('node_id', nodeId)
-      .execute();
-
-    const rows = files.map((f) => ({
-      project_id: pid,
-      node_id: nodeId,
+    const storageKey = `files_${pid}_${nodeId}`;
+    const fileData = {
+      nodeId,
       platform,
-      file_path: f.path,
-      file_content: f.content,
-      language: f.language,
-    }));
+      files,
+      updatedAt: new Date().toISOString(),
+    };
 
-    if (rows.length > 0) {
-      for (const row of rows) {
-        await db.from('generated_files').insert(row).execute();
-      }
-    }
+    localStorage.setItem(storageKey, JSON.stringify(fileData));
   } catch (err) {
     console.error('Failed to save generated files:', err);
   }
@@ -59,22 +35,17 @@ export async function saveGeneratedFiles(
 export async function loadGeneratedFiles(
   nodeId: string
 ): Promise<GeneratedFile[]> {
-  if (!isSupabaseConfigured) return [];
-
   try {
-    const { data } = await supabase
-      .from('generated_files')
-      .select('file_path, file_content, language')
-      .eq('node_id', nodeId)
-      .order('file_path');
+    const store = useCanvasStore.getState();
+    if (!store.projectId) return [];
 
-    if (!data) return [];
+    const storageKey = `files_${store.projectId}_${nodeId}`;
+    const dataStr = localStorage.getItem(storageKey);
 
-    return data.map((row) => ({
-      path: row.file_path,
-      content: row.file_content,
-      language: row.language,
-    }));
+    if (!dataStr) return [];
+
+    const data = JSON.parse(dataStr);
+    return data.files || [];
   } catch {
     return [];
   }
@@ -85,14 +56,23 @@ export async function updateGeneratedFile(
   filePath: string,
   content: string
 ): Promise<void> {
-  if (!isSupabaseConfigured) return;
-
   try {
-    await supabase
-      .from('generated_files')
-      .update({ file_content: content, updated_at: new Date().toISOString() })
-      .eq('node_id', nodeId)
-      .eq('file_path', filePath);
+    const files = await loadGeneratedFiles(nodeId);
+    const updatedFiles = files.map(f =>
+      f.path === filePath ? { ...f, content } : f
+    );
+
+    const store = useCanvasStore.getState();
+    if (!store.projectId) return;
+
+    const storageKey = `files_${store.projectId}_${nodeId}`;
+    const fileData = {
+      nodeId,
+      files: updatedFiles,
+      updatedAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem(storageKey, JSON.stringify(fileData));
   } catch (err) {
     console.error('Failed to update generated file:', err);
   }
