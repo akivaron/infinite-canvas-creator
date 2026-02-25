@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
+import { authService } from '@/lib/supabase';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
   id: string;
@@ -34,52 +36,77 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    const initAuth = async () => {
+      try {
+        const session = await authService.getCurrentSession();
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+          });
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+
+    const { data: authListener } = authService.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+          });
+        } else {
+          setUser(null);
+        }
+      }
+    );
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const user = users.find(
-      (u: any) => u.email === email && u.password === password
-    );
-
-    if (!user) {
-      throw new Error('Invalid email or password');
+    try {
+      const { user: authUser } = await authService.signIn(email, password);
+      if (authUser) {
+        setUser({
+          id: authUser.id,
+          email: authUser.email || '',
+        });
+      }
+    } catch (error: any) {
+      throw new Error(error.message || 'Failed to sign in');
     }
-
-    const userData = { id: user.id, email: user.email };
-    setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
   };
 
   const signUp = async (email: string, password: string) => {
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-
-    if (users.find((u: any) => u.email === email)) {
-      throw new Error('User already exists');
+    try {
+      const { user: authUser } = await authService.signUp(email, password);
+      if (authUser) {
+        setUser({
+          id: authUser.id,
+          email: authUser.email || '',
+        });
+      }
+    } catch (error: any) {
+      throw new Error(error.message || 'Failed to sign up');
     }
-
-    const newUser = {
-      id: Date.now().toString(),
-      email,
-      password,
-    };
-
-    users.push(newUser);
-    localStorage.setItem('users', JSON.stringify(users));
-
-    const userData = { id: newUser.id, email: newUser.email };
-    setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
   };
 
   const signOut = async () => {
-    setUser(null);
-    localStorage.removeItem('user');
+    try {
+      await authService.signOut();
+      setUser(null);
+    } catch (error: any) {
+      throw new Error(error.message || 'Failed to sign out');
+    }
   };
 
   return (
