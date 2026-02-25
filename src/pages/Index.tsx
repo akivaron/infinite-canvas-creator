@@ -15,7 +15,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { LogOut, Settings, User, HelpCircle, FileText } from 'lucide-react';
+import { LogOut, Settings, User, FolderOpen, History, Users, Rocket } from 'lucide-react';
+import { ProfileModal } from '@/components/canvas/ProfileModal';
+import { ProjectListModal } from '@/components/canvas/ProjectListModal';
+import { SettingsModal } from '@/components/canvas/SettingsModal';
+import { VersionHistoryPanel } from '@/components/canvas/VersionHistoryPanel';
+import { CollaborationPanel } from '@/components/canvas/CollaborationPanel';
+import { DeploymentPanel } from '@/components/canvas/DeploymentPanel';
+import { useState } from 'react';
 
 const ConnectingOverlay = () => {
   const { connectingFromId, cancelConnecting } = useCanvasStore();
@@ -41,6 +48,13 @@ const ConnectingOverlay = () => {
 
 const Index = () => {
   const { user, signOut } = useAuth();
+  const projectId = useCanvasStore((state) => state.projectId);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showProjects, setShowProjects] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showCollaboration, setShowCollaboration] = useState(false);
+  const [showDeployment, setShowDeployment] = useState(false);
 
   const getUserInitials = () => {
     if (!user?.email) return 'U';
@@ -85,24 +99,36 @@ const Index = () => {
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem className="cursor-pointer">
+            <DropdownMenuItem className="cursor-pointer" onClick={() => setShowProfile(true)}>
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
             </DropdownMenuItem>
 
-            <DropdownMenuItem className="cursor-pointer">
+            <DropdownMenuItem className="cursor-pointer" onClick={() => setShowProjects(true)}>
+              <FolderOpen className="mr-2 h-4 w-4" />
+              <span>Projects</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem className="cursor-pointer" onClick={() => setShowSettings(true)}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
             </DropdownMenuItem>
 
-            <DropdownMenuItem className="cursor-pointer">
-              <FileText className="mr-2 h-4 w-4" />
-              <span>Projects</span>
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem className="cursor-pointer" onClick={() => setShowVersionHistory(true)}>
+              <History className="mr-2 h-4 w-4" />
+              <span>Version History</span>
             </DropdownMenuItem>
 
-            <DropdownMenuItem className="cursor-pointer">
-              <HelpCircle className="mr-2 h-4 w-4" />
-              <span>Help & Support</span>
+            <DropdownMenuItem className="cursor-pointer" onClick={() => setShowCollaboration(true)}>
+              <Users className="mr-2 h-4 w-4" />
+              <span>Collaboration</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem className="cursor-pointer" onClick={() => setShowDeployment(true)}>
+              <Rocket className="mr-2 h-4 w-4" />
+              <span>Deploy</span>
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
@@ -117,6 +143,30 @@ const Index = () => {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <AnimatePresence>
+        {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+        {showProjects && <ProjectListModal onClose={() => setShowProjects(false)} />}
+        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+        {showVersionHistory && projectId && (
+          <VersionHistoryPanel
+            projectId={projectId}
+            onClose={() => setShowVersionHistory(false)}
+          />
+        )}
+        {showCollaboration && projectId && (
+          <CollaborationPanel
+            projectId={projectId}
+            onClose={() => setShowCollaboration(false)}
+          />
+        )}
+        {showDeployment && projectId && (
+          <DeploymentPanel
+            projectId={projectId}
+            onClose={() => setShowDeployment(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

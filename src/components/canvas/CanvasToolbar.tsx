@@ -4,20 +4,12 @@ import {
   Sparkles, Upload, ZoomIn, ZoomOut, Maximize2,
   Search, X, Layers, Moon, Sun, Copy, Trash2,
   Code, FileCode, Grid3X3, Keyboard, Download, Eye, Package,
-  Plus, Globe, Smartphone, Server, Terminal, Database, Monitor, ChevronUp, ChevronDown,
-  CreditCard, Settings, Key, Users, History, Rocket, User, FolderOpen, LogOut
+  Plus, Globe, Smartphone, Server, Terminal, Database, Monitor,
+  CreditCard, Key, XCircle
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { findFreePosition } from '@/lib/layout';
-import { SettingsModal } from './SettingsModal';
 import { SaveStatusIndicator } from './SaveStatusIndicator';
-import { CollaborationPanel } from './CollaborationPanel';
-import { VersionHistoryPanel } from './VersionHistoryPanel';
-import { DeploymentPanel } from './DeploymentPanel';
-import { ProfileModal } from './ProfileModal';
-import { ProjectListModal } from './ProjectListModal';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 /* ── Minimap ────────────────────────────────── */
 const Minimap = () => {
@@ -123,8 +115,6 @@ export const CanvasToolbar = () => {
     showClearConfirm, setShowClearConfirm,
   } = useCanvasStore();
   const pickedCount = nodes.filter((n) => n.picked).length;
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
 
   const [showIdeaInput, setShowIdeaInput] = useState(false);
   const [ideaText, setIdeaText] = useState('');
@@ -132,18 +122,9 @@ export const CanvasToolbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showMinimap, setShowMinimap] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [showCollaboration, setShowCollaboration] = useState(false);
-  const [showVersionHistory, setShowVersionHistory] = useState(false);
-  const [showDeployment, setShowDeployment] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const [showProjects, setShowProjects] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
-  const userMenuRef = useRef<HTMLDivElement>(null);
-  const projectId = useCanvasStore((state) => state.projectId);
 
   // Apply dark mode to html
   useEffect(() => {
@@ -245,17 +226,6 @@ export const CanvasToolbar = () => {
     if (showAddMenu) document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showAddMenu]);
-
-  // Close user menu on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setShowUserMenu(false);
-      }
-    };
-    if (showUserMenu) document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showUserMenu]);
 
   const handleFileImport = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -536,66 +506,22 @@ export const CanvasToolbar = () => {
           <ToolButton icon={darkMode ? Sun : Moon} label="Theme (D)" onClick={toggleDarkMode} />
           <ToolButton icon={Download} label="Export JSON" onClick={handleExport} />
           <ToolButton icon={Keyboard} label="Shortcuts" onClick={() => setShowShortcuts(true)} />
-          <ToolButton icon={History} label="Version History" onClick={() => setShowVersionHistory(true)} active={showVersionHistory} />
-          <ToolButton icon={Users} label="Collaboration" onClick={() => setShowCollaboration(true)} active={showCollaboration} />
-          <ToolButton icon={Rocket} label="Deploy" onClick={() => setShowDeployment(true)} active={showDeployment} />
 
-          <Divider />
-
-          {/* User menu dropdown */}
-          <div className="relative" ref={userMenuRef}>
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className={`group relative flex items-center justify-center gap-1.5 px-3 h-10 rounded-xl transition-all
-                ${showUserMenu ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'}
-              `}
-              title="User Menu"
-            >
-              <User className="w-4 h-4" />
-              <ChevronDown className={`w-3 h-3 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
-            </button>
-            <AnimatePresence>
-              {showUserMenu && (
-                <motion.div
-                  className="absolute bottom-full mb-2 right-0 w-56 rounded-2xl bg-card/95 backdrop-blur-xl border border-border shadow-2xl p-2"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                >
-                  <div className="px-3 py-2 border-b border-border mb-2">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Signed in as</p>
-                    <p className="text-xs font-bold text-foreground mt-1 truncate">{user?.email || 'Guest'}</p>
-                  </div>
-                  {[
-                    { icon: User, label: 'Profile', onClick: () => { setShowProfile(true); setShowUserMenu(false); } },
-                    { icon: FolderOpen, label: 'Projects', onClick: () => { setShowProjects(true); setShowUserMenu(false); } },
-                    { icon: Settings, label: 'Settings', onClick: () => { setShowSettings(true); setShowUserMenu(false); } },
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      onClick={item.onClick}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-secondary transition-colors group"
-                    >
-                      <item.icon className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                      <span className="text-xs font-bold text-foreground">{item.label}</span>
-                    </button>
-                  ))}
-                  <div className="h-px bg-border my-2" />
-                  <button
-                    onClick={async () => {
-                      setShowUserMenu(false);
-                      await signOut();
-                      navigate('/login');
-                    }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-destructive/10 transition-colors group"
-                  >
-                    <LogOut className="w-4 h-4 text-muted-foreground group-hover:text-destructive transition-colors" />
-                    <span className="text-xs font-bold text-muted-foreground group-hover:text-destructive transition-colors">Sign Out</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          {nodes.length > 0 && (
+            <>
+              <Divider />
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                title="Clear All"
+              >
+                <XCircle className="w-4 h-4" />
+                <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-lg bg-foreground text-background text-[9px] font-black uppercase tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  Clear All
+                </span>
+              </button>
+            </>
+          )}
 
           {pickedCount > 0 && (
             <>
@@ -619,43 +545,6 @@ export const CanvasToolbar = () => {
       <AnimatePresence>
         {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
       </AnimatePresence>
-
-      {/* Modals */}
-      <AnimatePresence>
-        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
-        {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
-        {showProjects && <ProjectListModal onClose={() => setShowProjects(false)} />}
-        {showCollaboration && projectId && (
-          <CollaborationPanel
-            projectId={projectId}
-            onClose={() => setShowCollaboration(false)}
-          />
-        )}
-        {showVersionHistory && projectId && (
-          <VersionHistoryPanel
-            projectId={projectId}
-            onClose={() => setShowVersionHistory(false)}
-          />
-        )}
-        {showDeployment && projectId && (
-          <DeploymentPanel
-            projectId={projectId}
-            onClose={() => setShowDeployment(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Clear all */}
-      {nodes.length > 0 && (
-        <motion.button
-          className="fixed top-6 right-6 z-20 px-4 py-2.5 rounded-2xl bg-card/90 backdrop-blur-xl border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          onClick={() => setShowClearConfirm(true)}
-        >
-          Clear All
-        </motion.button>
-      )}
 
       {/* Clear All confirmation dialog */}
       <AnimatePresence>
