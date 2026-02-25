@@ -110,6 +110,8 @@ interface CanvasState {
   disconnectElementLink: (sourceNodeId: string, targetNodeId: string) => void;
   setShowClearConfirm: (show: boolean) => void;
   setProjectId: (id: string | null) => void;
+  loadProject: (id: string) => void;
+  saveProject: () => void;
 }
 
 let nodeCounter = parseInt(localStorage.getItem('node_counter') || '0', 10);
@@ -343,5 +345,44 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (id) localStorage.setItem('current_project_id', id);
     else localStorage.removeItem('current_project_id');
     set({ projectId: id });
+  },
+
+  loadProject: (id) => {
+    try {
+      const projects = JSON.parse(localStorage.getItem('canvas_projects') || '{}');
+      const project = projects[id];
+      if (project) {
+        set({
+          nodes: project.nodes || [],
+          projectId: id,
+          selectedNodeId: null,
+        });
+        localStorage.setItem('current_project_id', id);
+        if (project.nodes) {
+          localStorage.setItem('canvas_nodes', JSON.stringify(project.nodes));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load project:', error);
+    }
+  },
+
+  saveProject: () => {
+    const { projectId, nodes } = get();
+    if (!projectId) return;
+
+    try {
+      const projects = JSON.parse(localStorage.getItem('canvas_projects') || '{}');
+      if (projects[projectId]) {
+        projects[projectId] = {
+          ...projects[projectId],
+          nodes,
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem('canvas_projects', JSON.stringify(projects));
+      }
+    } catch (error) {
+      console.error('Failed to save project:', error);
+    }
   },
 }));
