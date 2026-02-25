@@ -84,7 +84,7 @@ interface CanvasState {
 
   addNode: (node: Omit<CanvasNode, 'id' | 'connectedTo'>) => string;
   updateNode: (id: string, updates: Partial<CanvasNode>) => void;
-  removeNode: (id: string) => void;
+  removeNode: (id: string) => Promise<void>;
   duplicateNode: (id: string) => void;
   clearAll: () => void;
   selectNode: (id: string | null) => void;
@@ -173,6 +173,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   addNode: (node) => {
     const id = `node-${++nodeCounter}-${Date.now()}`;
+
+    if (node.type === 'database') {
+      (async () => {
+        try {
+          const { databaseAPI } = await import('@/lib/database-api');
+          await databaseAPI.createDatabase(id, node.title || 'New Database');
+        } catch (error) {
+          console.error('Failed to create database:', error);
+        }
+      })();
+    }
+
     set((state) => {
       const newNodes = [...state.nodes, { ...node, id, connectedTo: [] }];
       persistNodes(newNodes);
@@ -188,7 +200,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       return { nodes: newNodes };
     }),
 
-  removeNode: (id) =>
+  removeNode: async (id) => {
+    const node = get().nodes.find(n => n.id === id);
+
+    if (node?.type === 'database') {
+      try {
+        const { databaseAPI } = await import('@/lib/database-api');
+        await databaseAPI.deleteDatabase(id);
+      } catch (error) {
+        console.error('Failed to delete database:', error);
+      }
+    }
+
     set((state) => {
       const newNodes = state.nodes.filter((n) => n.id !== id).map((n) => ({
         ...n,
@@ -199,7 +222,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         nodes: newNodes,
         selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
       };
-    }),
+    });
+  },
 
   selectNode: (id) => set({ selectedNodeId: id }),
 
