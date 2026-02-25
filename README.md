@@ -36,6 +36,50 @@ npm i
 npm run dev
 ```
 
+## Database Migrations
+
+This project uses PostgreSQL via Supabase. Migrations are stored in `supabase/migrations/`.
+
+### Available Commands
+
+```bash
+# Show migration instructions and overview
+npm run db:migrate
+
+# Check migration status (list all migrations)
+npm run db:status
+
+# List all migrations with preview
+npm run db:list
+
+# Show database reset instructions
+npm run db:reset
+
+# Show help for all commands
+npm run db:help
+```
+
+### Quick Reference
+
+**Migrations are automatically applied** via the Supabase MCP tool in the codebase. No manual steps required!
+
+For detailed migration guide, see [DATABASE_MIGRATION_GUIDE.md](./DATABASE_MIGRATION_GUIDE.md).
+
+### Current Migrations
+
+Run `npm run db:status` to see:
+- ✅ Projects and files tables
+- ✅ Payment system tables
+- ✅ Agent sessions and context
+- ✅ Vector embeddings (pgvector)
+- ✅ Canvas nodes system
+- ✅ Collaboration features
+- ✅ Hosting and deployment
+- ✅ Domain management
+
+All tables include Row Level Security (RLS) policies for data protection.
+```
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).

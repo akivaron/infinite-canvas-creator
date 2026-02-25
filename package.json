@@ -10,7 +10,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:migrate": "node scripts/run-migrations.js",
+    "db:status": "node scripts/run-migrations.js status",
+    "db:list": "node scripts/run-migrations.js list",
+    "db:reset": "node scripts/run-migrations.js reset",
+    "db:help": "node scripts/run-migrations.js help"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
