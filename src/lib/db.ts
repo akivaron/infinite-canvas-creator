@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export interface QueryResult<T = any> {
   rows: T[];
@@ -189,7 +189,7 @@ class TableQuery {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: 'Database query failed' }));
         throw new Error(errorData.error || 'Database query failed');
       }
 
@@ -197,8 +197,8 @@ class TableQuery {
 
       return { data: result.rows, error: null };
     } catch (error) {
-      console.error('Database query error:', error);
-      return { data: null, error: error as Error };
+      console.warn('Database query error - backend not available:', error instanceof Error ? error.message : error);
+      return { data: [], error: error as Error };
     }
   }
 

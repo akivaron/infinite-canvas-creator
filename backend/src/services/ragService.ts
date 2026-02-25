@@ -101,17 +101,19 @@ export class RAGService {
     sessionId: string,
     turnId: string,
     content: string,
+    response?: string,
     metadata?: any
   ): Promise<void> {
     try {
-      const embedding = await embeddingService.generateEmbedding(content);
+      const fullContent = response ? `${content}\n\n${response}` : content;
+      const embedding = await embeddingService.generateEmbedding(fullContent);
 
       await db.query(
         `INSERT INTO agent_context_embeddings (session_id, turn_id, content, embedding, metadata)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (turn_id) DO UPDATE
          SET content = $3, embedding = $4, metadata = $5, updated_at = NOW()`,
-        [sessionId, turnId, content, JSON.stringify(embedding), metadata || {}]
+        [sessionId, turnId, fullContent, JSON.stringify(embedding), metadata || {}]
       );
     } catch (error) {
       console.error('Error indexing conversation:', error);
@@ -321,6 +323,55 @@ export class RAGService {
       codeFiles: parseInt(codeResult.rows[0]?.count || '0'),
       nodes: parseInt(nodeResult.rows[0]?.count || '0')
     };
+  }
+
+  indexBatchCode = this.batchIndexCode;
+  indexCanvasNode = this.indexNode;
+  searchCanvasNodes = this.searchNodes;
+
+  async buildRAGContext(
+    projectId: string,
+    sessionId: string,
+    query: string,
+    options?: any
+  ) {
+    return this.getRAGContext(projectId, sessionId, query, options);
+  }
+
+  async enhancePromptWithRAG(
+    prompt: string,
+    projectId: string,
+    sessionId: string,
+    options?: any
+  ) {
+    const context = await this.getRAGContext(projectId, sessionId, prompt, options);
+
+    let enhancedPrompt = prompt;
+
+    if (context.relevantCode.length > 0) {
+      enhancedPrompt += '\n\n## Relevant Code:\n';
+      context.relevantCode.forEach(code => {
+        enhancedPrompt += `\n### ${code.filePath} (similarity: ${code.similarity.toFixed(2)})\n`;
+        enhancedPrompt += '```\n' + code.content + '\n```\n';
+      });
+    }
+
+    if (context.relevantNodes.length > 0) {
+      enhancedPrompt += '\n\n## Relevant Canvas Nodes:\n';
+      context.relevantNodes.forEach(node => {
+        enhancedPrompt += `\n### ${node.nodeType} (similarity: ${node.similarity.toFixed(2)})\n`;
+        enhancedPrompt += node.content + '\n';
+      });
+    }
+
+    if (context.relevantConversations.length > 0) {
+      enhancedPrompt += '\n\n## Relevant Previous Conversations:\n';
+      context.relevantConversations.forEach(conv => {
+        enhancedPrompt += `\n${conv.content}\n`;
+      });
+    }
+
+    return { enhancedPrompt, context };
   }
 }
 
