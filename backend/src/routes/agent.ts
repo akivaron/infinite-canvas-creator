@@ -5,6 +5,7 @@ import { ContextAnalyzer } from '../services/contextAnalyzer.js';
 import { ragService } from '../services/ragService.js';
 import { createOpenRouterService } from '../services/openrouterService.js';
 import type { GenerationRequest } from '../types/agent.js';
+import { getWebSocketManager } from '../config/websocket.js';
 
 const router = Router();
 
@@ -60,6 +61,17 @@ router.post('/generate', async (req: Request, res: Response) => {
       useRAG?: boolean;
     };
 
+    const wsManager = getWebSocketManager();
+    const sessionId = requestData.sessionId || `session_${Date.now()}`;
+
+    if (wsManager) {
+      wsManager.notifyAIStart(sessionId, {
+        prompt: requestData.prompt,
+        mode: requestData.mode,
+        targetFile: requestData.targetFile
+      });
+    }
+
     let enhancedPrompt = requestData.prompt;
 
     if (requestData.useRAG !== false) {
@@ -85,14 +97,50 @@ router.post('/generate', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    let fullResponse = '';
+    let chunkCount = 0;
+
     for await (const chunk of agent.generate(request)) {
       res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+
+      if (chunk.data && typeof chunk.data === 'string') {
+        fullResponse += chunk.data;
+      }
+
+      chunkCount++;
+
+      if (wsManager && chunkCount % 5 === 0) {
+        wsManager.notifyAIProgress(sessionId, {
+          chunksReceived: chunkCount,
+          contentLength: fullResponse.length
+        });
+      }
     }
 
     res.write('data: [DONE]\n\n');
     res.end();
+
+    if (wsManager) {
+      wsManager.notifyAIComplete(sessionId, {
+        mode: requestData.mode,
+        contentLength: fullResponse.length,
+        chunks: chunkCount,
+        targetFile: requestData.targetFile
+      });
+    }
   } catch (error) {
     console.error('Generation error:', error);
+
+    const sessionId = (req.body as any).sessionId || `session_${Date.now()}`;
+    const wsManager = getWebSocketManager();
+
+    if (wsManager) {
+      wsManager.notifyAIError(sessionId, {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        type: 'generation_error'
+      });
+    }
+
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Unknown error',
     });

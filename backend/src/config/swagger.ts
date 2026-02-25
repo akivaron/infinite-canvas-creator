@@ -51,6 +51,38 @@ All errors follow this format:
 }
 \`\`\`
 
+## WebSocket Real-Time Communication
+
+The platform provides WebSocket support for real-time notifications:
+
+**WebSocket URL:** \`ws://localhost:3001/ws\`
+
+### Connection Parameters
+- \`userId\` (optional): User identifier
+- \`sessionId\` (optional): Session identifier
+
+### Event Types
+- \`ai_start\` - AI processing started
+- \`ai_progress\` - Progress updates during processing
+- \`ai_complete\` - AI processing completed
+- \`ai_error\` - Error occurred during processing
+- \`ping/pong\` - Heartbeat messages
+
+### Example Connection
+\`\`\`javascript
+const ws = new WebSocket('ws://localhost:3001/ws?sessionId=my_session');
+
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+
+  if (message.type === 'ai_complete') {
+    console.log('AI completed:', message.result);
+  }
+};
+\`\`\`
+
+For complete WebSocket documentation, see [WEBSOCKET_DOCUMENTATION.md](./WEBSOCKET_DOCUMENTATION.md)
+
 ## Support
 
 For support, email support@aicanvas.com or visit our documentation at https://docs.aicanvas.com
@@ -111,6 +143,10 @@ For support, email support@aicanvas.com or visit our documentation at https://do
       {
         name: 'Advanced',
         description: 'Advanced code analysis features'
+      },
+      {
+        name: 'WebSocket',
+        description: 'WebSocket connection management and statistics'
       }
     ],
     components: {

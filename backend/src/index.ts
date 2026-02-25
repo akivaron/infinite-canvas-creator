@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
 import swaggerUi from 'swagger-ui-express';
 import agentRoutes from './routes/agent.js';
 import advancedRoutes from './routes/advanced.js';
@@ -13,10 +14,12 @@ import deployRoutes from './routes/deploy.js';
 import { embeddingService } from './services/embeddingService.js';
 import { swaggerSpec } from './config/swagger.js';
 import db from './config/database.js';
+import { initializeWebSocket, getWebSocketManager } from './config/websocket.js';
 
 dotenv.config();
 
 const app = express();
+const server = createServer(app);
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({
@@ -71,6 +74,57 @@ app.get('/api-docs.json', (req, res) => {
   res.send(swaggerSpec);
 });
 
+initializeWebSocket(server);
+
+/**
+ * @swagger
+ * /api/ws/stats:
+ *   get:
+ *     summary: Get WebSocket connection statistics
+ *     description: Returns real-time statistics about WebSocket connections
+ *     tags: [WebSocket]
+ *     responses:
+ *       200:
+ *         description: WebSocket statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalConnections:
+ *                   type: integer
+ *                   description: Total number of connections
+ *                 activeConnections:
+ *                   type: integer
+ *                   description: Number of active open connections
+ *                 clients:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       userId:
+ *                         type: string
+ *                       sessionId:
+ *                         type: string
+ *                       isAlive:
+ *                         type: boolean
+ *                       state:
+ *                         type: integer
+ *                         description: WebSocket state (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)
+ *       503:
+ *         description: WebSocket not initialized
+ */
+app.get('/api/ws/stats', (req, res) => {
+  const wsManager = getWebSocketManager();
+  if (wsManager) {
+    res.json(wsManager.getStats());
+  } else {
+    res.status(503).json({ error: 'WebSocket not initialized' });
+  }
+});
+
 app.use('/api/agent', agentRoutes);
 app.use('/api/advanced', advancedRoutes);
 app.use('/api/rag', ragRoutes);
@@ -87,11 +141,14 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`\n✓ Backend Server Running on Port ${PORT}\n`);
   console.log('API Documentation:');
   console.log(`  ✓ Swagger UI:      http://localhost:${PORT}/api-docs`);
   console.log(`  ✓ OpenAPI JSON:    http://localhost:${PORT}/api-docs.json`);
+  console.log('\nWebSocket:');
+  console.log(`  ✓ WebSocket URL:   ws://localhost:${PORT}/ws`);
+  console.log(`  ✓ WS Stats:        http://localhost:${PORT}/api/ws/stats`);
   console.log('\nAPI Endpoints:');
   console.log(`  ✓ Health Check:    http://localhost:${PORT}/health`);
   console.log(`  ✓ Agent API:       http://localhost:${PORT}/api/agent`);
@@ -103,6 +160,7 @@ app.listen(PORT, () => {
   console.log(`  ✓ Deploy API:      http://localhost:${PORT}/api/deploy`);
   console.log(`  ✓ Advanced API:    http://localhost:${PORT}/api/advanced`);
   console.log('\nCore Features:');
+  console.log('  • WebSocket real-time notifications');
   console.log('  • PostgreSQL with connection pooling');
   console.log('  • OpenAPI/Swagger documentation');
   console.log('  • OpenRouter integration (backend proxy)');
