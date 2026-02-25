@@ -32,22 +32,26 @@ CREATE TABLE IF NOT EXISTS database_nodes (
 ALTER TABLE database_nodes ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Authenticated users can view database nodes" ON database_nodes;
 CREATE POLICY "Authenticated users can view database nodes"
   ON database_nodes FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can create database nodes" ON database_nodes;
 CREATE POLICY "Authenticated users can create database nodes"
   ON database_nodes FOR INSERT
   TO authenticated
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Authenticated users can update database nodes" ON database_nodes;
 CREATE POLICY "Authenticated users can update database nodes"
   ON database_nodes FOR UPDATE
   TO authenticated
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Authenticated users can delete database nodes" ON database_nodes;
 CREATE POLICY "Authenticated users can delete database nodes"
   ON database_nodes FOR DELETE
   TO authenticated

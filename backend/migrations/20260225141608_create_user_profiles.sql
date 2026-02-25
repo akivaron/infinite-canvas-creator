@@ -36,22 +36,26 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Users can view own profile" ON user_profiles;
 CREATE POLICY "Users can view own profile"
   ON user_profiles FOR SELECT
   TO authenticated
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can update own profile" ON user_profiles;
 CREATE POLICY "Users can update own profile"
   ON user_profiles FOR UPDATE
   TO authenticated
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Authenticated users can view other profiles" ON user_profiles;
 CREATE POLICY "Authenticated users can view other profiles"
   ON user_profiles FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can insert own profile" ON user_profiles;
 CREATE POLICY "Users can insert own profile"
   ON user_profiles FOR INSERT
   TO authenticated

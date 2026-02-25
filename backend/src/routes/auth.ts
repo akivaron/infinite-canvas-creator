@@ -9,6 +9,43 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+let userProfilesTableInitialized = false;
+
+async function ensureUserProfilesTable() {
+  if (userProfilesTableInitialized) return;
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      email text NOT NULL UNIQUE,
+      password_hash text NOT NULL,
+      full_name text,
+      avatar_url text,
+      bio text,
+      created_at timestamptz DEFAULT now() NOT NULL,
+      updated_at timestamptz DEFAULT now() NOT NULL
+    );
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'user_profiles'
+          AND column_name = 'password_hash'
+      ) THEN
+        ALTER TABLE user_profiles
+        ADD COLUMN password_hash text NOT NULL DEFAULT '';
+      END IF;
+    END;
+    $$;
+
+    CREATE INDEX IF NOT EXISTS user_profiles_email_idx ON user_profiles(email);
+  `);
+
+  userProfilesTableInitialized = true;
+}
+
 router.post('/register', async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -21,6 +58,7 @@ router.post('/register', async (req: Request, res: Response) => {
   }
 
   try {
+    await ensureUserProfilesTable();
     const existingUser = await pool.query(
       'SELECT id FROM user_profiles WHERE email = $1',
       [email]
@@ -64,6 +102,7 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 
   try {
+    await ensureUserProfilesTable();
     const result = await pool.query(
       'SELECT id, email, password_hash, created_at FROM user_profiles WHERE email = $1',
       [email]
@@ -98,6 +137,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
 router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    await ensureUserProfilesTable();
     const result = await pool.query(
       'SELECT id, email, full_name, avatar_url, bio, created_at, updated_at FROM user_profiles WHERE id = $1',
       [req.userId]
@@ -118,6 +158,7 @@ router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response
   const { full_name, avatar_url, bio } = req.body;
 
   try {
+    await ensureUserProfilesTable();
     const result = await pool.query(
       `UPDATE user_profiles
        SET full_name = $1, avatar_url = $2, bio = $3, updated_at = NOW()
