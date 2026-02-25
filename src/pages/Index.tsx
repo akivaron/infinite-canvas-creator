@@ -5,8 +5,17 @@ import { AssemblyPanel } from '@/components/canvas/AssemblyPanel';
 import { useCanvasStore } from '@/stores/canvasStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { LogOut, Settings, User, HelpCircle, FileText } from 'lucide-react';
 
 const ConnectingOverlay = () => {
   const { connectingFromId, cancelConnecting } = useCanvasStore();
@@ -31,7 +40,12 @@ const ConnectingOverlay = () => {
 };
 
 const Index = () => {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+
+  const getUserInitials = () => {
+    if (!user?.email) return 'U';
+    return user.email.charAt(0).toUpperCase();
+  };
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background">
@@ -42,16 +56,66 @@ const Index = () => {
       <AnimatePresence>
         <ConnectingOverlay />
       </AnimatePresence>
+
       <div className="fixed top-4 right-4 z-50">
-        <Button
-          onClick={signOut}
-          variant="outline"
-          size="sm"
-          className="gap-2"
-        >
-          <LogOut className="w-4 h-4" />
-          Logout
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="rounded-full w-10 h-10 hover:bg-accent transition-colors"
+            >
+              <Avatar className="w-9 h-9">
+                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-cyan-500 text-white font-semibold">
+                  {getUserInitials()}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium">My Account</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user?.email || 'user@example.com'}
+                </p>
+              </div>
+            </DropdownMenuLabel>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem className="cursor-pointer">
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem className="cursor-pointer">
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem className="cursor-pointer">
+              <FileText className="mr-2 h-4 w-4" />
+              <span>Projects</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem className="cursor-pointer">
+              <HelpCircle className="mr-2 h-4 w-4" />
+              <span>Help & Support</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem
+              className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+              onClick={signOut}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Logout</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
