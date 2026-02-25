@@ -89,58 +89,69 @@ ALTER TABLE canvas_node_embeddings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_embeddings ENABLE ROW LEVEL SECURITY;
 
 -- Public access policies (simplified)
+DROP POLICY IF EXISTS "Anyone can view code embeddings" ON code_embeddings;
 CREATE POLICY "Anyone can view code embeddings"
   ON code_embeddings FOR SELECT
   TO public
   USING (true);
 
+DROP POLICY IF EXISTS "Anyone can insert code embeddings" ON code_embeddings;
 CREATE POLICY "Anyone can insert code embeddings"
   ON code_embeddings FOR INSERT
   TO public
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Anyone can update code embeddings" ON code_embeddings;
 CREATE POLICY "Anyone can update code embeddings"
   ON code_embeddings FOR UPDATE
   TO public
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Anyone can delete code embeddings" ON code_embeddings;
 CREATE POLICY "Anyone can delete code embeddings"
   ON code_embeddings FOR DELETE
   TO public
   USING (true);
 
+DROP POLICY IF EXISTS "Anyone can view canvas node embeddings" ON canvas_node_embeddings;
 CREATE POLICY "Anyone can view canvas node embeddings"
   ON canvas_node_embeddings FOR SELECT
   TO public
   USING (true);
 
+DROP POLICY IF EXISTS "Anyone can insert canvas node embeddings" ON canvas_node_embeddings;
 CREATE POLICY "Anyone can insert canvas node embeddings"
   ON canvas_node_embeddings FOR INSERT
   TO public
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Anyone can update canvas node embeddings" ON canvas_node_embeddings;
 CREATE POLICY "Anyone can update canvas node embeddings"
   ON canvas_node_embeddings FOR UPDATE
   TO public
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Anyone can delete canvas node embeddings" ON canvas_node_embeddings;
 CREATE POLICY "Anyone can delete canvas node embeddings"
   ON canvas_node_embeddings FOR DELETE
   TO public
   USING (true);
 
+DROP POLICY IF EXISTS "Anyone can view conversation embeddings" ON conversation_embeddings;
 CREATE POLICY "Anyone can view conversation embeddings"
   ON conversation_embeddings FOR SELECT
   TO public
   USING (true);
 
+DROP POLICY IF EXISTS "Anyone can insert conversation embeddings" ON conversation_embeddings;
 CREATE POLICY "Anyone can insert conversation embeddings"
   ON conversation_embeddings FOR INSERT
   TO public
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Anyone can delete conversation embeddings" ON conversation_embeddings;
 CREATE POLICY "Anyone can delete conversation embeddings"
   ON conversation_embeddings FOR DELETE
   TO public

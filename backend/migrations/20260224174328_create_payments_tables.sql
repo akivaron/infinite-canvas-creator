@@ -75,16 +75,19 @@ ALTER TABLE payment_intents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_events ENABLE ROW LEVEL SECURITY;
 
 -- Policies for payment_intents (allow anon access)
+DROP POLICY IF EXISTS "Allow anon select payment_intents" ON payment_intents;
 CREATE POLICY "Allow anon select payment_intents"
   ON payment_intents FOR SELECT
   TO anon
   USING (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon insert payment_intents" ON payment_intents;
 CREATE POLICY "Allow anon insert payment_intents"
   ON payment_intents FOR INSERT
   TO anon
   WITH CHECK (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon update payment_intents" ON payment_intents;
 CREATE POLICY "Allow anon update payment_intents"
   ON payment_intents FOR UPDATE
   TO anon
@@ -92,11 +95,13 @@ CREATE POLICY "Allow anon update payment_intents"
   WITH CHECK (id IS NOT NULL);
 
 -- Policies for payment_events (allow anon access)
+DROP POLICY IF EXISTS "Allow anon select payment_events" ON payment_events;
 CREATE POLICY "Allow anon select payment_events"
   ON payment_events FOR SELECT
   TO anon
   USING (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon insert payment_events" ON payment_events;
 CREATE POLICY "Allow anon insert payment_events"
   ON payment_events FOR INSERT
   TO anon
@@ -112,6 +117,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to auto-update updated_at
+DROP TRIGGER IF EXISTS update_payment_intents_updated_at_trigger ON payment_intents;
 CREATE TRIGGER update_payment_intents_updated_at_trigger
   BEFORE UPDATE ON payment_intents
   FOR EACH ROW

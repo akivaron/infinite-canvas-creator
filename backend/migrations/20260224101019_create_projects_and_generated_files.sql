@@ -38,22 +38,26 @@ CREATE TABLE IF NOT EXISTS projects (
 
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anon select projects" ON projects;
 CREATE POLICY "Allow anon select projects"
   ON projects FOR SELECT
   TO anon
   USING (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon insert projects" ON projects;
 CREATE POLICY "Allow anon insert projects"
   ON projects FOR INSERT
   TO anon
   WITH CHECK (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon update projects" ON projects;
 CREATE POLICY "Allow anon update projects"
   ON projects FOR UPDATE
   TO anon
   USING (id IS NOT NULL)
   WITH CHECK (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon delete projects" ON projects;
 CREATE POLICY "Allow anon delete projects"
   ON projects FOR DELETE
   TO anon
@@ -71,24 +75,42 @@ CREATE TABLE IF NOT EXISTS generated_files (
   updated_at timestamptz DEFAULT now()
 );
 
+-- Ensure node_id column exists even if table was created earlier without it
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'generated_files'
+      AND column_name = 'node_id'
+  ) THEN
+    ALTER TABLE generated_files ADD COLUMN node_id text;
+  END IF;
+END;
+$$;
+
 ALTER TABLE generated_files ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anon select generated_files" ON generated_files;
 CREATE POLICY "Allow anon select generated_files"
   ON generated_files FOR SELECT
   TO anon
   USING (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon insert generated_files" ON generated_files;
 CREATE POLICY "Allow anon insert generated_files"
   ON generated_files FOR INSERT
   TO anon
   WITH CHECK (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon update generated_files" ON generated_files;
 CREATE POLICY "Allow anon update generated_files"
   ON generated_files FOR UPDATE
   TO anon
   USING (id IS NOT NULL)
   WITH CHECK (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon delete generated_files" ON generated_files;
 CREATE POLICY "Allow anon delete generated_files"
   ON generated_files FOR DELETE
   TO anon

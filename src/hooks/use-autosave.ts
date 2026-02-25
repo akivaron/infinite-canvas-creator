@@ -44,37 +44,18 @@ export function useAutosave(options: AutosaveOptions = {}) {
       setSaveStatus('saving');
       setError(null);
 
-      const { data: existingProject } = await db
-        .from('canvas_projects')
-        .select('id')
-        .eq('id', projectId)
-        .maybeSingle();
-
-      if (existingProject) {
-        const { error: updateError } = await db
-          .from('canvas_projects')
-          .update({
-            nodes_data: nodes,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', projectId)
-          .execute();
-
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await db
-          .from('canvas_projects')
-          .insert({
-            id: projectId,
-            name: 'Untitled Project',
-            nodes_data: nodes,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .execute();
-
-        if (insertError) throw insertError;
-      }
+      // Upsert project to avoid duplicate primary key errors
+      await db.query(
+        `
+          INSERT INTO canvas_projects (id, name, nodes_data, created_at, updated_at)
+          VALUES ($1, $2, $3, NOW(), NOW())
+          ON CONFLICT (id) DO UPDATE
+          SET
+            nodes_data = EXCLUDED.nodes_data,
+            updated_at = NOW()
+        `,
+        [projectId, 'Untitled Project', nodes]
+      );
 
       for (const node of nodes) {
         const { data: existingNode } = await db

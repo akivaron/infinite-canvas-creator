@@ -85,33 +85,39 @@ ALTER TABLE domains ENABLE ROW LEVEL SECURITY;
 ALTER TABLE domain_checks ENABLE ROW LEVEL SECURITY;
 
 -- Domains policies
+DROP POLICY IF EXISTS "Users can view own domains" ON domains;
 CREATE POLICY "Users can view own domains"
   ON domains FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own domains" ON domains;
 CREATE POLICY "Users can insert own domains"
   ON domains FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own domains" ON domains;
 CREATE POLICY "Users can update own domains"
   ON domains FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own domains" ON domains;
 CREATE POLICY "Users can delete own domains"
   ON domains FOR DELETE
   TO authenticated
   USING (auth.uid() = user_id);
 
 -- Domain checks policies
+DROP POLICY IF EXISTS "Users can view own domain checks" ON domain_checks;
 CREATE POLICY "Users can view own domain checks"
   ON domain_checks FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own domain checks" ON domain_checks;
 CREATE POLICY "Users can insert own domain checks"
   ON domain_checks FOR INSERT
   TO authenticated

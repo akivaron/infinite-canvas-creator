@@ -50,12 +50,12 @@ WHERE status IS NULL;
 -- project_invitations table
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS project_invitations (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id uuid REFERENCES canvas_projects(id) ON DELETE CASCADE NOT NULL,
+  id text PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id text REFERENCES canvas_projects(id) ON DELETE CASCADE NOT NULL,
   email text NOT NULL,
   role text NOT NULL CHECK (role IN ('editor', 'viewer')),
   token text UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
-  invited_by uuid REFERENCES auth.users(id) ON DELETE SET NULL NOT NULL,
+  invited_by text NOT NULL,
   created_at timestamptz DEFAULT now(),
   expires_at timestamptz DEFAULT (now() + interval '7 days'),
   accepted_at timestamptz,
@@ -68,21 +68,23 @@ CREATE INDEX IF NOT EXISTS idx_project_invitations_token ON project_invitations(
 
 ALTER TABLE project_invitations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view invitations they sent" ON project_invitations;
 CREATE POLICY "Users can view invitations they sent"
   ON project_invitations FOR SELECT
   TO authenticated
   USING (
-    invited_by = auth.uid()
+    invited_by = auth.uid()::text
     OR
     EXISTS (
       SELECT 1 FROM project_collaborators
       WHERE project_collaborators.project_id = project_invitations.project_id
-      AND project_collaborators.user_id = auth.uid()
+      AND project_collaborators.user_id = auth.uid()::text
       AND project_collaborators.role = 'owner'
       AND project_collaborators.status = 'accepted'
     )
   );
 
+DROP POLICY IF EXISTS "Project owners can create invitations" ON project_invitations;
 CREATE POLICY "Project owners can create invitations"
   ON project_invitations FOR INSERT
   TO authenticated
@@ -90,23 +92,24 @@ CREATE POLICY "Project owners can create invitations"
     EXISTS (
       SELECT 1 FROM project_collaborators
       WHERE project_collaborators.project_id = project_invitations.project_id
-      AND project_collaborators.user_id = auth.uid()
+      AND project_collaborators.user_id = auth.uid()::text
       AND project_collaborators.role = 'owner'
       AND project_collaborators.status = 'accepted'
     )
-    AND invited_by = auth.uid()
+    AND invited_by = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Project owners can update invitations" ON project_invitations;
 CREATE POLICY "Project owners can update invitations"
   ON project_invitations FOR UPDATE
   TO authenticated
   USING (
-    invited_by = auth.uid()
+    invited_by = auth.uid()::text
     OR
     EXISTS (
       SELECT 1 FROM project_collaborators
       WHERE project_collaborators.project_id = project_invitations.project_id
-      AND project_collaborators.user_id = auth.uid()
+      AND project_collaborators.user_id = auth.uid()::text
       AND project_collaborators.role = 'owner'
       AND project_collaborators.status = 'accepted'
     )
@@ -116,9 +119,9 @@ CREATE POLICY "Project owners can update invitations"
 -- project_activity table
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS project_activity (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id uuid REFERENCES canvas_projects(id) ON DELETE CASCADE NOT NULL,
-  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  id text PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id text REFERENCES canvas_projects(id) ON DELETE CASCADE NOT NULL,
+  user_id text,
   action_type text NOT NULL,
   entity_type text NOT NULL,
   entity_id text,
@@ -131,6 +134,7 @@ CREATE INDEX IF NOT EXISTS idx_project_activity_created_at ON project_activity(c
 
 ALTER TABLE project_activity ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Collaborators can view project activity" ON project_activity;
 CREATE POLICY "Collaborators can view project activity"
   ON project_activity FOR SELECT
   TO authenticated
@@ -138,11 +142,12 @@ CREATE POLICY "Collaborators can view project activity"
     EXISTS (
       SELECT 1 FROM project_collaborators
       WHERE project_collaborators.project_id = project_activity.project_id
-      AND project_collaborators.user_id = auth.uid()
+      AND project_collaborators.user_id = auth.uid()::text
       AND project_collaborators.status = 'accepted'
     )
   );
 
+DROP POLICY IF EXISTS "Collaborators can create activity logs" ON project_activity;
 CREATE POLICY "Collaborators can create activity logs"
   ON project_activity FOR INSERT
   TO authenticated
@@ -150,10 +155,10 @@ CREATE POLICY "Collaborators can create activity logs"
     EXISTS (
       SELECT 1 FROM project_collaborators
       WHERE project_collaborators.project_id = project_activity.project_id
-      AND project_collaborators.user_id = auth.uid()
+      AND project_collaborators.user_id = auth.uid()::text
       AND project_collaborators.status = 'accepted'
     )
-    AND user_id = auth.uid()
+    AND user_id = auth.uid()::text
   );
 
 -- ============================================================================
@@ -178,6 +183,7 @@ CREATE INDEX IF NOT EXISTS idx_user_presence_last_active ON user_presence(last_a
 
 ALTER TABLE user_presence ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Collaborators can view presence" ON user_presence;
 CREATE POLICY "Collaborators can view presence"
   ON user_presence FOR SELECT
   TO authenticated
@@ -185,34 +191,37 @@ CREATE POLICY "Collaborators can view presence"
     EXISTS (
       SELECT 1 FROM project_collaborators
       WHERE project_collaborators.project_id = user_presence.project_id
-      AND project_collaborators.user_id = auth.uid()
+      AND project_collaborators.user_id = auth.uid()::text
       AND project_collaborators.status = 'accepted'
     )
   );
 
+DROP POLICY IF EXISTS "Users can insert their own presence" ON user_presence;
 CREATE POLICY "Users can insert their own presence"
   ON user_presence FOR INSERT
   TO authenticated
   WITH CHECK (
-    user_id = auth.uid()
+    user_id = auth.uid()::text
     AND
     EXISTS (
       SELECT 1 FROM project_collaborators
       WHERE project_collaborators.project_id = user_presence.project_id
-      AND project_collaborators.user_id = auth.uid()
+      AND project_collaborators.user_id = auth.uid()::text
       AND project_collaborators.status = 'accepted'
     )
   );
 
+DROP POLICY IF EXISTS "Users can update their presence" ON user_presence;
 CREATE POLICY "Users can update their presence"
   ON user_presence FOR UPDATE
   TO authenticated
-  USING (user_id = auth.uid());
+  USING (user_id = auth.uid()::text);
 
+DROP POLICY IF EXISTS "Users can delete their presence" ON user_presence;
 CREATE POLICY "Users can delete their presence"
   ON user_presence FOR DELETE
   TO authenticated
-  USING (user_id = auth.uid());
+  USING (user_id = auth.uid()::text);
 
 -- ============================================================================
 -- Update project_versions table

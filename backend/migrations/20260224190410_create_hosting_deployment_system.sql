@@ -149,6 +149,7 @@ CREATE INDEX IF NOT EXISTS idx_hosting_plans_active ON hosting_plans(is_active, 
 
 ALTER TABLE hosting_plans ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can view active plans" ON hosting_plans;
 CREATE POLICY "Anyone can view active plans"
   ON hosting_plans FOR SELECT
   USING (is_active = true);
@@ -185,16 +186,19 @@ CREATE INDEX IF NOT EXISTS idx_user_subscriptions_status ON user_subscriptions(s
 
 ALTER TABLE user_subscriptions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own subscriptions" ON user_subscriptions;
 CREATE POLICY "Users can view own subscriptions"
   ON user_subscriptions FOR SELECT
   TO authenticated
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can create own subscriptions" ON user_subscriptions;
 CREATE POLICY "Users can create own subscriptions"
   ON user_subscriptions FOR INSERT
   TO authenticated
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update own subscriptions" ON user_subscriptions;
 CREATE POLICY "Users can update own subscriptions"
   ON user_subscriptions FOR UPDATE
   TO authenticated
@@ -206,7 +210,7 @@ CREATE POLICY "Users can update own subscriptions"
 CREATE TABLE IF NOT EXISTS deployments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  project_id uuid REFERENCES canvas_projects(id) ON DELETE CASCADE,
+  project_id text REFERENCES canvas_projects(id) ON DELETE CASCADE,
   deployment_type text NOT NULL CHECK (deployment_type IN ('web', 'api', 'database')),
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'building', 'running', 'stopped', 'failed', 'deleted')),
   container_id text,
@@ -231,21 +235,25 @@ CREATE INDEX IF NOT EXISTS idx_deployments_subdomain ON deployments(subdomain);
 
 ALTER TABLE deployments ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own deployments" ON deployments;
 CREATE POLICY "Users can view own deployments"
   ON deployments FOR SELECT
   TO authenticated
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can create own deployments" ON deployments;
 CREATE POLICY "Users can create own deployments"
   ON deployments FOR INSERT
   TO authenticated
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update own deployments" ON deployments;
 CREATE POLICY "Users can update own deployments"
   ON deployments FOR UPDATE
   TO authenticated
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can delete own deployments" ON deployments;
 CREATE POLICY "Users can delete own deployments"
   ON deployments FOR DELETE
   TO authenticated
@@ -271,6 +279,7 @@ CREATE INDEX IF NOT EXISTS idx_deployment_storage_user_id ON deployment_storage(
 
 ALTER TABLE deployment_storage ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own storage" ON deployment_storage;
 CREATE POLICY "Users can view own storage"
   ON deployment_storage FOR SELECT
   TO authenticated
@@ -297,6 +306,7 @@ CREATE INDEX IF NOT EXISTS idx_deployment_metrics_timestamp ON deployment_metric
 
 ALTER TABLE deployment_metrics ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own metrics" ON deployment_metrics;
 CREATE POLICY "Users can view own metrics"
   ON deployment_metrics FOR SELECT
   TO authenticated
@@ -335,6 +345,7 @@ CREATE INDEX IF NOT EXISTS idx_billing_invoices_status ON billing_invoices(statu
 
 ALTER TABLE billing_invoices ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own invoices" ON billing_invoices;
 CREATE POLICY "Users can view own invoices"
   ON billing_invoices FOR SELECT
   TO authenticated
@@ -364,21 +375,25 @@ CREATE INDEX IF NOT EXISTS idx_deployment_domains_domain ON deployment_domains(d
 
 ALTER TABLE deployment_domains ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own domains" ON deployment_domains;
 CREATE POLICY "Users can view own domains"
   ON deployment_domains FOR SELECT
   TO authenticated
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can create own domains" ON deployment_domains;
 CREATE POLICY "Users can create own domains"
   ON deployment_domains FOR INSERT
   TO authenticated
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update own domains" ON deployment_domains;
 CREATE POLICY "Users can update own domains"
   ON deployment_domains FOR UPDATE
   TO authenticated
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can delete own domains" ON deployment_domains;
 CREATE POLICY "Users can delete own domains"
   ON deployment_domains FOR DELETE
   TO authenticated

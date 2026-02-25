@@ -74,10 +74,10 @@
     - Collaboration permissions
 */
 
--- Canvas Projects table
+-- Canvas Projects table (local Postgres version, no auth schema)
 CREATE TABLE IF NOT EXISTS canvas_projects (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  id text PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id text,
   name text NOT NULL DEFAULT 'Untitled Project',
   description text DEFAULT '',
   thumbnail text,
@@ -91,10 +91,9 @@ CREATE TABLE IF NOT EXISTS canvas_projects (
   updated_at timestamptz DEFAULT now()
 );
 
--- Canvas Nodes table
 CREATE TABLE IF NOT EXISTS canvas_nodes (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id uuid REFERENCES canvas_projects(id) ON DELETE CASCADE,
+  id text PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id text REFERENCES canvas_projects(id) ON DELETE CASCADE,
   node_id text NOT NULL,
   node_type text NOT NULL,
   position_x float DEFAULT 0,
@@ -108,10 +107,32 @@ CREATE TABLE IF NOT EXISTS canvas_nodes (
   UNIQUE(project_id, node_id)
 );
 
--- Canvas Connections table
+-- Ensure node_id and node_type columns exist even if canvas_nodes was created earlier without them
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'canvas_nodes'
+      AND column_name = 'node_id'
+  ) THEN
+    ALTER TABLE canvas_nodes ADD COLUMN node_id text;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'canvas_nodes'
+      AND column_name = 'node_type'
+  ) THEN
+    ALTER TABLE canvas_nodes ADD COLUMN node_type text;
+  END IF;
+END;
+$$;
+
 CREATE TABLE IF NOT EXISTS canvas_connections (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id uuid REFERENCES canvas_projects(id) ON DELETE CASCADE,
+  id text PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id text REFERENCES canvas_projects(id) ON DELETE CASCADE,
   source_node_id text NOT NULL,
   target_node_id text NOT NULL,
   connection_type text DEFAULT 'data',
@@ -119,33 +140,30 @@ CREATE TABLE IF NOT EXISTS canvas_connections (
   created_at timestamptz DEFAULT now()
 );
 
--- Project Versions table
 CREATE TABLE IF NOT EXISTS project_versions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id uuid REFERENCES canvas_projects(id) ON DELETE CASCADE,
+  id text PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id text REFERENCES canvas_projects(id) ON DELETE CASCADE,
   version_number integer NOT NULL,
   snapshot jsonb NOT NULL,
   changes text DEFAULT '',
-  created_by uuid REFERENCES auth.users(id),
+  created_by text,
   created_at timestamptz DEFAULT now()
 );
 
--- Project Collaborators table
 CREATE TABLE IF NOT EXISTS project_collaborators (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id uuid REFERENCES canvas_projects(id) ON DELETE CASCADE,
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  id text PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id text REFERENCES canvas_projects(id) ON DELETE CASCADE,
+  user_id text,
   role text NOT NULL CHECK (role IN ('owner', 'editor', 'viewer')),
-  invited_by uuid REFERENCES auth.users(id),
+  invited_by text,
   joined_at timestamptz DEFAULT now(),
   UNIQUE(project_id, user_id)
 );
 
--- Project Stars table
 CREATE TABLE IF NOT EXISTS project_stars (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id uuid REFERENCES canvas_projects(id) ON DELETE CASCADE,
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  id text PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id text REFERENCES canvas_projects(id) ON DELETE CASCADE,
+  user_id text,
   created_at timestamptz DEFAULT now(),
   UNIQUE(project_id, user_id)
 );
@@ -184,61 +202,69 @@ ALTER TABLE project_stars ENABLE ROW LEVEL SECURITY;
 -- RLS Policies for canvas_projects
 
 -- Public projects are viewable by anyone
+DROP POLICY IF EXISTS "Anyone can view public projects" ON canvas_projects;
 CREATE POLICY "Anyone can view public projects"
   ON canvas_projects FOR SELECT
   TO public
   USING (is_public = true);
 
 -- Authenticated users can view their own projects
+DROP POLICY IF EXISTS "Users can view own projects" ON canvas_projects;
 CREATE POLICY "Users can view own projects"
   ON canvas_projects FOR SELECT
   TO authenticated
-  USING (user_id = auth.uid());
+  USING (user_id = auth.uid()::text);
 
 -- Collaborators can view projects
+DROP POLICY IF EXISTS "Collaborators can view projects" ON canvas_projects;
 CREATE POLICY "Collaborators can view projects"
   ON canvas_projects FOR SELECT
   TO authenticated
   USING (
     id IN (
       SELECT project_id FROM project_collaborators
-      WHERE user_id = auth.uid()
+      WHERE user_id = auth.uid()::text
     )
   );
 
 -- Users can create projects
+DROP POLICY IF EXISTS "Users can create projects" ON canvas_projects;
 CREATE POLICY "Users can create projects"
   ON canvas_projects FOR INSERT
   TO authenticated
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (user_id = auth.uid()::text);
 
 -- Users can update own projects
+DROP POLICY IF EXISTS "Users can update own projects" ON canvas_projects;
 CREATE POLICY "Users can update own projects"
   ON canvas_projects FOR UPDATE
   TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  USING (user_id = auth.uid()::text)
+  WITH CHECK (user_id = auth.uid()::text);
 
 -- Editors can update projects
+DROP POLICY IF EXISTS "Editors can update projects" ON canvas_projects;
 CREATE POLICY "Editors can update projects"
   ON canvas_projects FOR UPDATE
   TO authenticated
   USING (
     id IN (
       SELECT project_id FROM project_collaborators
-      WHERE user_id = auth.uid() AND role IN ('owner', 'editor')
+      WHERE user_id = auth.uid()::text AND role IN ('owner', 'editor')
     )
   );
 
 -- Users can delete own projects
+DROP POLICY IF EXISTS "Users can delete own projects" ON canvas_projects;
 CREATE POLICY "Users can delete own projects"
   ON canvas_projects FOR DELETE
   TO authenticated
-  USING (user_id = auth.uid());
+  USING (user_id = auth.uid()::text);
 
 -- RLS Policies for canvas_nodes
 
 -- View policies inherit from project
+DROP POLICY IF EXISTS "Users can view nodes in accessible projects" ON canvas_nodes;
 CREATE POLICY "Users can view nodes in accessible projects"
   ON canvas_nodes FOR SELECT
   TO public
@@ -249,48 +275,53 @@ CREATE POLICY "Users can view nodes in accessible projects"
     )
   );
 
+DROP POLICY IF EXISTS "Users can view nodes in own projects" ON canvas_nodes;
 CREATE POLICY "Users can view nodes in own projects"
   ON canvas_nodes FOR SELECT
   TO authenticated
   USING (
     project_id IN (
       SELECT id FROM canvas_projects
-      WHERE user_id = auth.uid()
+      WHERE user_id = auth.uid()::text
     )
   );
 
+DROP POLICY IF EXISTS "Collaborators can view nodes" ON canvas_nodes;
 CREATE POLICY "Collaborators can view nodes"
   ON canvas_nodes FOR SELECT
   TO authenticated
   USING (
     project_id IN (
       SELECT project_id FROM project_collaborators
-      WHERE user_id = auth.uid()
+      WHERE user_id = auth.uid()::text
     )
   );
 
 -- Edit policies for owners and editors
+DROP POLICY IF EXISTS "Owners can manage nodes" ON canvas_nodes;
 CREATE POLICY "Owners can manage nodes"
   ON canvas_nodes FOR ALL
   TO authenticated
   USING (
     project_id IN (
       SELECT id FROM canvas_projects
-      WHERE user_id = auth.uid()
+      WHERE user_id = auth.uid()::text
     )
   );
 
+DROP POLICY IF EXISTS "Editors can manage nodes" ON canvas_nodes;
 CREATE POLICY "Editors can manage nodes"
   ON canvas_nodes FOR ALL
   TO authenticated
   USING (
     project_id IN (
       SELECT project_id FROM project_collaborators
-      WHERE user_id = auth.uid() AND role IN ('owner', 'editor')
+      WHERE user_id = auth.uid()::text AND role IN ('owner', 'editor')
     )
   );
 
 -- Similar policies for canvas_connections
+DROP POLICY IF EXISTS "Public connections viewable" ON canvas_connections;
 CREATE POLICY "Public connections viewable"
   ON canvas_connections FOR SELECT
   TO public
@@ -300,95 +331,106 @@ CREATE POLICY "Public connections viewable"
     )
   );
 
+DROP POLICY IF EXISTS "Users can manage own project connections" ON canvas_connections;
 CREATE POLICY "Users can manage own project connections"
   ON canvas_connections FOR ALL
   TO authenticated
   USING (
     project_id IN (
-      SELECT id FROM canvas_projects WHERE user_id = auth.uid()
+      SELECT id FROM canvas_projects WHERE user_id = auth.uid()::text
     )
   );
 
+DROP POLICY IF EXISTS "Collaborators can manage connections" ON canvas_connections;
 CREATE POLICY "Collaborators can manage connections"
   ON canvas_connections FOR ALL
   TO authenticated
   USING (
     project_id IN (
       SELECT project_id FROM project_collaborators
-      WHERE user_id = auth.uid() AND role IN ('owner', 'editor')
+      WHERE user_id = auth.uid()::text AND role IN ('owner', 'editor')
     )
   );
 
 -- Policies for project_versions
+DROP POLICY IF EXISTS "Users can view project versions" ON project_versions;
 CREATE POLICY "Users can view project versions"
   ON project_versions FOR SELECT
   TO authenticated
   USING (
     project_id IN (
       SELECT id FROM canvas_projects
-      WHERE user_id = auth.uid()
+      WHERE user_id = auth.uid()::text
       OR id IN (
         SELECT project_id FROM project_collaborators
-        WHERE user_id = auth.uid()
+        WHERE user_id = auth.uid()::text
       )
     )
   );
 
+DROP POLICY IF EXISTS "Users can create versions" ON project_versions;
 CREATE POLICY "Users can create versions"
   ON project_versions FOR INSERT
   TO authenticated
   WITH CHECK (
     project_id IN (
       SELECT id FROM canvas_projects
-      WHERE user_id = auth.uid()
+      WHERE user_id = auth.uid()::text
       OR id IN (
         SELECT project_id FROM project_collaborators
-        WHERE user_id = auth.uid() AND role IN ('owner', 'editor')
+        WHERE user_id = auth.uid()::text AND role IN ('owner', 'editor')
       )
     )
   );
 
 -- Policies for project_collaborators
+DROP POLICY IF EXISTS "Users can view collaborators" ON project_collaborators;
 CREATE POLICY "Users can view collaborators"
   ON project_collaborators FOR SELECT
   TO authenticated
   USING (
     project_id IN (
-      SELECT id FROM canvas_projects WHERE user_id = auth.uid()
+      SELECT id FROM canvas_projects WHERE user_id = auth.uid()::text
     )
-    OR user_id = auth.uid()
+    OR user_id = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Owners can manage collaborators" ON project_collaborators;
 CREATE POLICY "Owners can manage collaborators"
   ON project_collaborators FOR ALL
   TO authenticated
   USING (
     project_id IN (
-      SELECT id FROM canvas_projects WHERE user_id = auth.uid()
+      SELECT id FROM canvas_projects WHERE user_id = auth.uid()::text
     )
   );
 
 -- Policies for project_stars
+DROP POLICY IF EXISTS "Anyone can view star counts" ON project_stars;
 CREATE POLICY "Anyone can view star counts"
   ON project_stars FOR SELECT
   TO public
   USING (true);
 
+DROP POLICY IF EXISTS "Users can star projects" ON project_stars;
 CREATE POLICY "Users can star projects"
   ON project_stars FOR INSERT
   TO authenticated
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (user_id = auth.uid()::text);
 
+DROP POLICY IF EXISTS "Users can unstar projects" ON project_stars;
 CREATE POLICY "Users can unstar projects"
   ON project_stars FOR DELETE
   TO authenticated
-  USING (user_id = auth.uid());
+  USING (user_id = auth.uid()::text);
 
 -- Triggers for updated_at
+DROP TRIGGER IF EXISTS update_canvas_projects_updated_at ON canvas_projects;
 CREATE TRIGGER update_canvas_projects_updated_at
   BEFORE UPDATE ON canvas_projects
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_canvas_nodes_updated_at ON canvas_nodes;
 CREATE TRIGGER update_canvas_nodes_updated_at
   BEFORE UPDATE ON canvas_nodes
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -414,10 +456,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS project_starred ON project_stars;
 CREATE TRIGGER project_starred
   AFTER INSERT ON project_stars
   FOR EACH ROW EXECUTE FUNCTION increment_star_count();
 
+DROP TRIGGER IF EXISTS project_unstarred ON project_stars;
 CREATE TRIGGER project_unstarred
   AFTER DELETE ON project_stars
   FOR EACH ROW EXECUTE FUNCTION decrement_star_count();

@@ -48,22 +48,26 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
 
 ALTER TABLE agent_sessions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anon select agent_sessions" ON agent_sessions;
 CREATE POLICY "Allow anon select agent_sessions"
   ON agent_sessions FOR SELECT
   TO anon
   USING (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon insert agent_sessions" ON agent_sessions;
 CREATE POLICY "Allow anon insert agent_sessions"
   ON agent_sessions FOR INSERT
   TO anon
   WITH CHECK (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon update agent_sessions" ON agent_sessions;
 CREATE POLICY "Allow anon update agent_sessions"
   ON agent_sessions FOR UPDATE
   TO anon
   USING (id IS NOT NULL)
   WITH CHECK (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon delete agent_sessions" ON agent_sessions;
 CREATE POLICY "Allow anon delete agent_sessions"
   ON agent_sessions FOR DELETE
   TO anon
@@ -85,11 +89,13 @@ CREATE TABLE IF NOT EXISTS agent_generations (
 
 ALTER TABLE agent_generations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anon select agent_generations" ON agent_generations;
 CREATE POLICY "Allow anon select agent_generations"
   ON agent_generations FOR SELECT
   TO anon
   USING (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon insert agent_generations" ON agent_generations;
 CREATE POLICY "Allow anon insert agent_generations"
   ON agent_generations FOR INSERT
   TO anon
@@ -109,16 +115,19 @@ CREATE TABLE IF NOT EXISTS code_context_cache (
 
 ALTER TABLE code_context_cache ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anon select code_context_cache" ON code_context_cache;
 CREATE POLICY "Allow anon select code_context_cache"
   ON code_context_cache FOR SELECT
   TO anon
   USING (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon insert code_context_cache" ON code_context_cache;
 CREATE POLICY "Allow anon insert code_context_cache"
   ON code_context_cache FOR INSERT
   TO anon
   WITH CHECK (id IS NOT NULL);
 
+DROP POLICY IF EXISTS "Allow anon update code_context_cache" ON code_context_cache;
 CREATE POLICY "Allow anon update code_context_cache"
   ON code_context_cache FOR UPDATE
   TO anon

@@ -21,7 +21,7 @@ export const InfiniteCanvas = () => {
     },
   });
 
-  const { trackCursor } = usePresenceTracking(projectId, true, 200);
+  const { updatePresence } = usePresenceTracking(projectId, true);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
@@ -102,7 +102,7 @@ export const InfiniteCanvas = () => {
 
       const canvasCursorX = (e.clientX - panX) / zoom;
       const canvasCursorY = (e.clientY - panY) / zoom;
-      trackCursor(canvasCursorX, canvasCursorY, selectedNodeId || undefined);
+      updatePresence(canvasCursorX, canvasCursorY, selectedNodeId || undefined);
 
       if (isPanning.current) {
         const dx = e.clientX - lastMouse.current.x;
@@ -114,7 +114,7 @@ export const InfiniteCanvas = () => {
         drag(e.clientX, e.clientY);
       }
     },
-    [isPanning, isDragging, panX, panY, setPan, drag, zoom, trackCursor, selectedNodeId]
+    [isPanning, isDragging, panX, panY, setPan, drag, zoom, updatePresence, selectedNodeId]
   );
 
   const handleMouseUp = useCallback(() => {
