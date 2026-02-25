@@ -137,6 +137,10 @@ For support, email support@aicanvas.com or visit our documentation at https://do
         description: 'Database sandbox operations'
       },
       {
+        name: 'Database Builder',
+        description: 'Isolated database management with visual editors for tables, columns, indexes, and data'
+      },
+      {
         name: 'Deployment',
         description: 'Deployment and hosting operations'
       },
@@ -295,6 +299,144 @@ For support, email support@aicanvas.com or visit our documentation at https://do
               type: 'boolean'
             }
           }
+        },
+        DatabaseSchema: {
+          type: 'object',
+          properties: {
+            nodeId: {
+              type: 'string',
+              description: 'Unique identifier for the database node'
+            },
+            schemaName: {
+              type: 'string',
+              description: 'PostgreSQL schema name'
+            },
+            databaseName: {
+              type: 'string',
+              description: 'Human-readable database name'
+            }
+          }
+        },
+        ColumnSchema: {
+          type: 'object',
+          required: ['name', 'type'],
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Column name'
+            },
+            type: {
+              type: 'string',
+              description: 'Column data type',
+              enum: ['uuid', 'serial', 'text', 'varchar', 'integer', 'bigint', 'float', 'decimal', 'boolean', 'date', 'timestamp', 'timestamptz', 'json', 'jsonb', 'array', 'enum', 'bytea']
+            },
+            primaryKey: {
+              type: 'boolean',
+              description: 'Whether this column is a primary key'
+            },
+            nullable: {
+              type: 'boolean',
+              description: 'Whether this column accepts NULL values'
+            },
+            unique: {
+              type: 'boolean',
+              description: 'Whether this column has a unique constraint'
+            },
+            defaultValue: {
+              type: 'string',
+              description: 'Default value for the column'
+            },
+            references: {
+              type: 'object',
+              description: 'Foreign key reference',
+              properties: {
+                table: {
+                  type: 'string',
+                  description: 'Referenced table name'
+                },
+                column: {
+                  type: 'string',
+                  description: 'Referenced column name'
+                }
+              }
+            }
+          }
+        },
+        TableSchema: {
+          type: 'object',
+          required: ['tableName', 'columns'],
+          properties: {
+            tableName: {
+              type: 'string',
+              description: 'Name of the table to create'
+            },
+            columns: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/ColumnSchema'
+              },
+              description: 'Array of column definitions'
+            }
+          }
+        },
+        QueryOptions: {
+          type: 'object',
+          properties: {
+            select: {
+              type: 'array',
+              items: {
+                type: 'string'
+              },
+              description: 'Columns to select'
+            },
+            where: {
+              type: 'object',
+              description: 'WHERE clause conditions'
+            },
+            orderBy: {
+              type: 'string',
+              description: 'Column to order by'
+            },
+            limit: {
+              type: 'integer',
+              description: 'Maximum number of rows to return'
+            },
+            offset: {
+              type: 'integer',
+              description: 'Number of rows to skip'
+            }
+          }
+        },
+        SQLQueryResult: {
+          type: 'object',
+          properties: {
+            rows: {
+              type: 'array',
+              items: {
+                type: 'object'
+              },
+              description: 'Query result rows'
+            },
+            rowCount: {
+              type: 'integer',
+              description: 'Number of rows affected'
+            },
+            fields: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: {
+                    type: 'string'
+                  },
+                  dataTypeID: {
+                    type: 'integer'
+                  }
+                }
+              },
+              description: 'Field definitions'
+            }
+          }
         }
       }
     },
@@ -304,7 +446,7 @@ For support, email support@aicanvas.com or visit our documentation at https://do
       }
     ]
   },
-  apis: ['./src/routes/*.ts', './src/index.ts']
+  apis: ['./src/routes/*.ts', './src/routes/database-docs.ts', './src/index.ts']
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

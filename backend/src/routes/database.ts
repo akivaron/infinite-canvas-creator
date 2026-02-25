@@ -4,6 +4,49 @@ import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
+/**
+ * @swagger
+ * /api/database/create:
+ *   post:
+ *     summary: Create isolated database
+ *     description: Creates a new isolated PostgreSQL schema for a database node
+ *     tags: [Database Builder]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - nodeId
+ *               - name
+ *             properties:
+ *               nodeId:
+ *                 type: string
+ *                 description: Unique identifier for the database node
+ *               name:
+ *                 type: string
+ *                 description: Human-readable database name
+ *     responses:
+ *       200:
+ *         description: Database created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 schemaName:
+ *                   type: string
+ *                   description: PostgreSQL schema name
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Invalid request body
+ *       500:
+ *         description: Internal server error
+ */
 router.post('/create', authenticateToken, async (req: AuthRequest, res: Response) => {
   const { nodeId, name } = req.body;
 
