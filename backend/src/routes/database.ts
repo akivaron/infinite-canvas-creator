@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { databaseManager } from '../services/databaseManager';
-import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { databaseManager } from '../services/databaseManager.js';
+import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -12,7 +12,7 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
   }
 
   try {
-    const schemaName = await databaseManager.createDatabase(nodeId, name);
+    const schemaName = await databaseManager.createDatabase(nodeId as string, name as string);
     res.json({ schemaName, message: 'Database created successfully' });
   } catch (error: any) {
     console.error('Create database error:', error);
@@ -21,7 +21,7 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
 });
 
 router.delete('/:nodeId', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId } = req.params;
+  const nodeId = String(req.params.nodeId);
 
   try {
     await databaseManager.deleteDatabase(nodeId);
@@ -33,7 +33,7 @@ router.delete('/:nodeId', authenticateToken, async (req: AuthRequest, res: Respo
 });
 
 router.get('/:nodeId/schema', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId } = req.params;
+  const nodeId = String(req.params.nodeId);
 
   try {
     const schemaName = await databaseManager.getSchema(nodeId);
@@ -48,7 +48,7 @@ router.get('/:nodeId/schema', authenticateToken, async (req: AuthRequest, res: R
 });
 
 router.get('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId } = req.params;
+  const nodeId = String(req.params.nodeId);
 
   try {
     const tables = await databaseManager.listTables(nodeId);
@@ -60,7 +60,7 @@ router.get('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: R
 });
 
 router.post('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId } = req.params;
+  const nodeId = String(req.params.nodeId);
   const { tableName, columns } = req.body;
 
   if (!tableName || !columns || !Array.isArray(columns)) {
@@ -68,7 +68,7 @@ router.post('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: 
   }
 
   try {
-    await databaseManager.createTable(nodeId, tableName, columns);
+    await databaseManager.createTable(nodeId, tableName as string, columns);
     res.json({ message: 'Table created successfully' });
   } catch (error: any) {
     console.error('Create table error:', error);
@@ -77,7 +77,8 @@ router.post('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: 
 });
 
 router.delete('/:nodeId/tables/:tableName', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId, tableName } = req.params;
+  const nodeId = String(req.params.nodeId);
+  const tableName = String(req.params.tableName);
 
   try {
     await databaseManager.dropTable(nodeId, tableName);
@@ -89,7 +90,8 @@ router.delete('/:nodeId/tables/:tableName', authenticateToken, async (req: AuthR
 });
 
 router.get('/:nodeId/tables/:tableName/schema', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId, tableName } = req.params;
+  const nodeId = String(req.params.nodeId);
+  const tableName = String(req.params.tableName);
 
   try {
     const schema = await databaseManager.getTableSchema(nodeId, tableName);
@@ -101,7 +103,8 @@ router.get('/:nodeId/tables/:tableName/schema', authenticateToken, async (req: A
 });
 
 router.post('/:nodeId/tables/:tableName/columns', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId, tableName } = req.params;
+  const nodeId = String(req.params.nodeId);
+  const tableName = String(req.params.tableName);
   const { column } = req.body;
 
   if (!column || !column.name || !column.type) {
@@ -118,7 +121,9 @@ router.post('/:nodeId/tables/:tableName/columns', authenticateToken, async (req:
 });
 
 router.delete('/:nodeId/tables/:tableName/columns/:columnName', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId, tableName, columnName } = req.params;
+  const nodeId = String(req.params.nodeId);
+  const tableName = String(req.params.tableName);
+  const columnName = String(req.params.columnName);
 
   try {
     await databaseManager.dropColumn(nodeId, tableName, columnName);
@@ -130,7 +135,8 @@ router.delete('/:nodeId/tables/:tableName/columns/:columnName', authenticateToke
 });
 
 router.post('/:nodeId/tables/:tableName/indexes', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId, tableName } = req.params;
+  const nodeId = String(req.params.nodeId);
+  const tableName = String(req.params.tableName);
   const { indexName, columns, unique } = req.body;
 
   if (!indexName || !columns || !Array.isArray(columns)) {
@@ -138,7 +144,7 @@ router.post('/:nodeId/tables/:tableName/indexes', authenticateToken, async (req:
   }
 
   try {
-    await databaseManager.createIndex(nodeId, tableName, indexName, columns, unique);
+    await databaseManager.createIndex(nodeId, tableName, indexName as string, columns, unique);
     res.json({ message: 'Index created successfully' });
   } catch (error: any) {
     console.error('Create index error:', error);
@@ -147,7 +153,8 @@ router.post('/:nodeId/tables/:tableName/indexes', authenticateToken, async (req:
 });
 
 router.delete('/:nodeId/indexes/:indexName', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId, indexName } = req.params;
+  const nodeId = String(req.params.nodeId);
+  const indexName = String(req.params.indexName);
 
   try {
     await databaseManager.dropIndex(nodeId, indexName);
@@ -159,7 +166,7 @@ router.delete('/:nodeId/indexes/:indexName', authenticateToken, async (req: Auth
 });
 
 router.post('/:nodeId/query', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId } = req.params;
+  const nodeId = String(req.params.nodeId);
   const { query, params } = req.body;
 
   if (!query) {
@@ -167,7 +174,7 @@ router.post('/:nodeId/query', authenticateToken, async (req: AuthRequest, res: R
   }
 
   try {
-    const result = await databaseManager.executeSQL(nodeId, query, params || []);
+    const result = await databaseManager.executeSQL(nodeId, query as string, params || []);
     res.json(result);
   } catch (error: any) {
     console.error('Execute SQL error:', error);
@@ -176,7 +183,8 @@ router.post('/:nodeId/query', authenticateToken, async (req: AuthRequest, res: R
 });
 
 router.post('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId, tableName } = req.params;
+  const nodeId = String(req.params.nodeId);
+  const tableName = String(req.params.tableName);
   const { data } = req.body;
 
   if (!data || typeof data !== 'object') {
@@ -193,16 +201,17 @@ router.post('/:nodeId/tables/:tableName/data', authenticateToken, async (req: Au
 });
 
 router.get('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId, tableName } = req.params;
+  const nodeId = String(req.params.nodeId);
+  const tableName = String(req.params.tableName);
   const { select, where, orderBy, limit, offset } = req.query;
 
   try {
     const options: any = {};
-    if (select) options.select = (select as string).split(',');
-    if (where) options.where = JSON.parse(where as string);
-    if (orderBy) options.orderBy = orderBy as string;
-    if (limit) options.limit = parseInt(limit as string);
-    if (offset) options.offset = parseInt(offset as string);
+    if (select) options.select = String(select).split(',');
+    if (where) options.where = JSON.parse(String(where));
+    if (orderBy) options.orderBy = String(orderBy);
+    if (limit) options.limit = parseInt(String(limit));
+    if (offset) options.offset = parseInt(String(offset));
 
     const data = await databaseManager.queryData(nodeId, tableName, options);
     res.json({ data });
@@ -213,7 +222,8 @@ router.get('/:nodeId/tables/:tableName/data', authenticateToken, async (req: Aut
 });
 
 router.put('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId, tableName } = req.params;
+  const nodeId = String(req.params.nodeId);
+  const tableName = String(req.params.tableName);
   const { data, where } = req.body;
 
   if (!data || !where || typeof data !== 'object' || typeof where !== 'object') {
@@ -230,7 +240,8 @@ router.put('/:nodeId/tables/:tableName/data', authenticateToken, async (req: Aut
 });
 
 router.delete('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const { nodeId, tableName } = req.params;
+  const nodeId = String(req.params.nodeId);
+  const tableName = String(req.params.tableName);
   const { where } = req.body;
 
   if (!where || typeof where !== 'object') {
