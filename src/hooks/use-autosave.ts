@@ -54,7 +54,8 @@ export function useAutosave(options: AutosaveOptions = {}) {
             nodes_data = EXCLUDED.nodes_data,
             updated_at = NOW()
         `,
-        [projectId, 'Untitled Project', nodes]
+        // Store nodes as JSON string so Postgres json/jsonb columns get valid JSON
+        [projectId, 'Untitled Project', nodesJson]
       );
 
       for (const node of nodes) {
