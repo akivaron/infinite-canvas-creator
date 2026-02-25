@@ -1182,6 +1182,42 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
           onMouseUp={handleCanvasMouseUp}
           onMouseLeave={() => { handleCanvasMouseUp(); }}
         >
+          {/* Coming Soon Overlay for Non-SQL Engines */}
+          {dbEngine !== 'sql' && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm" style={{ background: 'rgba(10, 10, 15, 0.9)' }}>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="text-center px-8 py-12 rounded-2xl border border-white/10"
+                style={{ background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(139, 92, 246, 0.1))' }}
+              >
+                <div className="mb-6">
+                  {(() => {
+                    const engine = dbEngines.find(e => e.id === dbEngine);
+                    const EngIcon = engine?.icon || Database;
+                    return <EngIcon className="w-16 h-16 mx-auto text-cyan-400/60" />;
+                  })()}
+                </div>
+                <h2 className="text-2xl font-black uppercase tracking-wider text-white mb-3">
+                  {dbEngines.find(e => e.id === dbEngine)?.label} Support
+                </h2>
+                <p className="text-sm text-white/50 mb-2">Coming Soon</p>
+                <p className="text-xs text-white/30 max-w-md">
+                  {dbEngines.find(e => e.id === dbEngine)?.description} support is currently under development.
+                </p>
+                <div className="mt-8">
+                  <button
+                    onClick={() => setDbEngine('sql')}
+                    className="px-6 py-3 rounded-lg bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors text-xs font-bold flex items-center gap-2 mx-auto"
+                  >
+                    <Database className="w-4 h-4" />
+                    Switch to SQL
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
           {/* Grid */}
           <div className="canvas-bg absolute inset-0 pointer-events-none" style={{
             backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px)`,
