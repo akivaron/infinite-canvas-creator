@@ -61,34 +61,33 @@ function showMigrationStatus() {
 function showMigrationInstructions() {
   console.log('\n🗄️  Database Migration Instructions\n');
   console.log('═'.repeat(60));
-  console.log('\nThis project uses Supabase for database management.');
-  console.log('Migrations are automatically applied when using the');
-  console.log('mcp__supabase__apply_migration tool in the codebase.\n');
+  console.log('\nThis project uses PostgreSQL for database management.');
+  console.log('Migrations need to be applied manually using psql or');
+  console.log('PostgreSQL client of your choice.\n');
 
   console.log('📁 Migrations Location:');
   console.log('   supabase/migrations/\n');
 
   showMigrationStatus();
 
-  console.log('\n🔧 Manual Migration Options:\n');
-  console.log('1. Supabase Dashboard:');
-  console.log('   • Go to: https://app.supabase.com');
-  console.log('   • Navigate to: SQL Editor');
-  console.log('   • Copy and paste migration SQL');
-  console.log('   • Click "Run"\n');
-
-  console.log('2. Supabase CLI (if installed):');
-  console.log('   • Run: supabase db push');
-  console.log('   • Or: supabase db reset\n');
-
-  console.log('3. PostgreSQL Client (psql):');
+  console.log('\n🔧 Migration Options:\n');
+  console.log('1. PostgreSQL Client (psql) - Recommended:');
   console.log('   • Get connection string from .env');
-  console.log('   • Run: psql $DATABASE_URL < migration.sql\n');
+  console.log('   • Run single migration:');
+  console.log('     psql $DATABASE_URL < supabase/migrations/migration_file.sql\n');
+  console.log('   • Run all migrations:');
+  console.log('     for file in supabase/migrations/*.sql; do');
+  console.log('       psql $DATABASE_URL < "$file"');
+  console.log('     done\n');
 
-  console.log('4. Using code (recommended):');
-  console.log('   • Migrations are applied automatically');
-  console.log('   • Via mcp__supabase__apply_migration tool');
-  console.log('   • No manual action needed\n');
+  console.log('2. GUI Tools:');
+  console.log('   • pgAdmin: Import and run SQL files');
+  console.log('   • DBeaver: Execute SQL scripts');
+  console.log('   • TablePlus: Run SQL queries\n');
+
+  console.log('3. Node.js Script:');
+  console.log('   • Use pg library to run migrations');
+  console.log('   • See backend/src/config/database.ts for connection\n');
 
   console.log('═'.repeat(60));
 }
@@ -100,17 +99,20 @@ function showResetInstructions() {
 
   console.log('Options to reset database:\n');
 
-  console.log('1. Supabase Dashboard:');
-  console.log('   • Go to: Database → Settings');
-  console.log('   • Click "Reset Database"\n');
+  console.log('1. Drop and Recreate Database:');
+  console.log('   • Connect to PostgreSQL');
+  console.log('   • Run: DROP DATABASE database_name;');
+  console.log('   • Run: CREATE DATABASE database_name;');
+  console.log('   • Reapply all migrations\n');
 
-  console.log('2. Supabase CLI:');
-  console.log('   • Run: supabase db reset');
-  console.log('   • This will reapply all migrations\n');
+  console.log('2. Drop All Tables:');
+  console.log('   • Run SQL to drop all tables in schema');
+  console.log('   • Reapply all migrations\n');
 
-  console.log('3. Manual SQL:');
-  console.log('   • DROP all tables manually');
-  console.log('   • Re-run all migrations\n');
+  console.log('3. Using psql:');
+  console.log('   • psql -c "DROP DATABASE database_name;"');
+  console.log('   • psql -c "CREATE DATABASE database_name;"');
+  console.log('   • Run migrations again\n');
 
   console.log('═'.repeat(60));
 }

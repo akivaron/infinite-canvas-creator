@@ -1,20 +1,21 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { useCanvasStore } from '@/stores/canvasStore';
 import type { GeneratedFile } from './types';
+
+const isDbConfigured = true;
 
 async function getOrCreateProjectId(): Promise<string | null> {
   const store = useCanvasStore.getState();
   if (store.projectId) return store.projectId;
 
-  const { data } = await supabase
+  const { data } = await db
     .from('projects')
     .insert({ title: 'Untitled Project', description: '' })
-    .select('id')
-    .maybeSingle();
+    .execute();
 
-  if (data?.id) {
-    store.setProjectId(data.id);
-    return data.id;
+  if (data && data.length > 0 && data[0]?.id) {
+    store.setProjectId(data[0].id);
+    return data[0].id;
   }
   return null;
 }
@@ -24,16 +25,17 @@ export async function saveGeneratedFiles(
   platform: string,
   files: GeneratedFile[]
 ): Promise<void> {
-  if (!isSupabaseConfigured) return;
+  if (!isDbConfigured) return;
 
   try {
     const pid = await getOrCreateProjectId();
     if (!pid) return;
 
-    await supabase
+    await db
       .from('generated_files')
       .delete()
-      .eq('node_id', nodeId);
+      .eq('node_id', nodeId)
+      .execute();
 
     const rows = files.map((f) => ({
       project_id: pid,
@@ -45,7 +47,9 @@ export async function saveGeneratedFiles(
     }));
 
     if (rows.length > 0) {
-      await supabase.from('generated_files').insert(rows);
+      for (const row of rows) {
+        await db.from('generated_files').insert(row).execute();
+      }
     }
   } catch (err) {
     console.error('Failed to save generated files:', err);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useCanvasStore } from '@/stores/canvasStore';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -44,24 +44,25 @@ export function useAutosave(options: AutosaveOptions = {}) {
       setSaveStatus('saving');
       setError(null);
 
-      const { data: existingProject } = await supabase
+      const { data: existingProject } = await db
         .from('canvas_projects')
         .select('id')
         .eq('id', projectId)
         .maybeSingle();
 
       if (existingProject) {
-        const { error: updateError } = await supabase
+        const { error: updateError } = await db
           .from('canvas_projects')
           .update({
             nodes_data: nodes,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', projectId);
+          .eq('id', projectId)
+          .execute();
 
         if (updateError) throw updateError;
       } else {
-        const { error: insertError } = await supabase
+        const { error: insertError } = await db
           .from('canvas_projects')
           .insert({
             id: projectId,
@@ -69,50 +70,70 @@ export function useAutosave(options: AutosaveOptions = {}) {
             nodes_data: nodes,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          });
+          })
+          .execute();
 
         if (insertError) throw insertError;
       }
 
       for (const node of nodes) {
-        const { error: nodeError } = await supabase
+        const { data: existingNode } = await db
           .from('canvas_nodes')
-          .upsert({
-            id: node.id,
-            project_id: projectId,
-            type: node.type,
-            title: node.title,
-            description: node.description,
-            content: node.content || null,
-            position_x: node.x,
-            position_y: node.y,
-            width: node.width,
-            height: node.height,
-            status: node.status,
-            metadata: {
-              fileName: node.fileName,
-              generatedCode: node.generatedCode,
-              connectedTo: node.connectedTo,
-              picked: node.picked,
-              parentId: node.parentId,
-              pageRole: node.pageRole,
-              tag: node.tag,
-              platform: node.platform,
-              elementLinks: node.elementLinks,
-              language: node.language,
-              envVars: node.envVars,
-              aiModel: node.aiModel,
-              generatedFiles: node.generatedFiles,
-              isLocked: node.isLocked,
-              isCollapsed: node.isCollapsed,
-            },
-            updated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'id',
-          });
+          .select('id')
+          .eq('id', node.id)
+          .maybeSingle();
 
-        if (nodeError) {
-          console.error('Error saving node:', node.id, nodeError);
+        const nodeData = {
+          id: node.id,
+          project_id: projectId,
+          type: node.type,
+          title: node.title,
+          description: node.description,
+          content: node.content || null,
+          position_x: node.x,
+          position_y: node.y,
+          width: node.width,
+          height: node.height,
+          status: node.status,
+          metadata: {
+            fileName: node.fileName,
+            generatedCode: node.generatedCode,
+            connectedTo: node.connectedTo,
+            picked: node.picked,
+            parentId: node.parentId,
+            pageRole: node.pageRole,
+            tag: node.tag,
+            platform: node.platform,
+            elementLinks: node.elementLinks,
+            language: node.language,
+            envVars: node.envVars,
+            aiModel: node.aiModel,
+            generatedFiles: node.generatedFiles,
+            isLocked: node.isLocked,
+            isCollapsed: node.isCollapsed,
+          },
+          updated_at: new Date().toISOString(),
+        };
+
+        if (existingNode) {
+          const { error: nodeError } = await db
+            .from('canvas_nodes')
+            .update(nodeData)
+            .eq('id', node.id)
+            .execute();
+
+          if (nodeError) {
+            console.error('Error updating node:', node.id, nodeError);
+          }
+        } else {
+          const { error: nodeError } = await db
+            .from('canvas_nodes')
+            .insert(nodeData)
+            .execute();
+
+          if (nodeError) {
+            console.error('Error inserting node:', node.id, nodeError);
+          }
         }
       }
 
@@ -178,7 +199,7 @@ export function useAutosave(options: AutosaveOptions = {}) {
     try {
       setSaveStatus('saving');
 
-      const { data: project, error: projectError } = await supabase
+      const { data: project, error: projectError} = await db
         .from('canvas_projects')
         .select('nodes_data')
         .eq('id', targetProjectId)

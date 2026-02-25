@@ -1,6 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCollaboration } from '@/hooks/use-collaboration';
-import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
 
 interface PresenceCursorsProps {
@@ -15,9 +14,8 @@ export function PresenceCursors({ projectId, zoom, panX, panY }: PresenceCursors
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setCurrentUserId(data.user?.id || null);
-    });
+    const userId = localStorage.getItem('userId') || 'anonymous';
+    setCurrentUserId(userId);
   }, []);
 
   const otherUsers = activeUsers.filter((user) => user.user_id !== currentUserId);
@@ -97,9 +95,8 @@ export function PresenceAvatars({ projectId }: { projectId: string }) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setCurrentUserId(data.user?.id || null);
-    });
+    const userId = localStorage.getItem('userId') || 'anonymous';
+    setCurrentUserId(userId);
   }, []);
 
   const otherUsers = activeUsers.filter((user) => user.user_id !== currentUserId);

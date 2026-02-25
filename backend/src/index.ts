@@ -12,6 +12,7 @@ import mobileRoutes from './routes/mobile.js';
 import dbsandboxRoutes from './routes/dbsandbox.js';
 import deployRoutes from './routes/deploy.js';
 import domainsRoutes from './routes/domains.js';
+import paymentsRoutes from './routes/payments.js';
 import { embeddingService } from './services/embeddingService.js';
 import { swaggerSpec } from './config/swagger.js';
 import db from './config/database.js';
@@ -135,6 +136,29 @@ app.use('/api/mobile', mobileRoutes);
 app.use('/api/dbsandbox', dbsandboxRoutes);
 app.use('/api/deploy', deployRoutes);
 app.use('/api/domains', domainsRoutes);
+app.use('/api/payments', paymentsRoutes);
+
+app.post('/api/db/query', async (req, res) => {
+  try {
+    const { sql, params = [] } = req.body;
+
+    if (!sql) {
+      return res.status(400).json({ error: 'SQL query is required' });
+    }
+
+    const result = await db.query(sql, params);
+
+    res.json({
+      rows: result.rows,
+      rowCount: result.rowCount,
+    });
+  } catch (error: any) {
+    console.error('Database query error:', error);
+    res.status(500).json({
+      error: error.message || 'Database query failed',
+    });
+  }
+});
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
