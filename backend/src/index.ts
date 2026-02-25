@@ -5,6 +5,7 @@ import { createServer } from 'http';
 import swaggerUi from 'swagger-ui-express';
 import authRoutes from './routes/auth.js';
 import databaseRoutes from './routes/database.js';
+import databaseNodesRoutes from './routes/database-nodes.js';
 import agentRoutes from './routes/agent.js';
 import advancedRoutes from './routes/advanced.js';
 import ragRoutes from './routes/rag.js';
@@ -147,6 +148,7 @@ app.get('/api/ws/stats', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/database', databaseRoutes);
+app.use('/api/database-nodes', databaseNodesRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/advanced', advancedRoutes);
 app.use('/api/rag', ragRoutes);

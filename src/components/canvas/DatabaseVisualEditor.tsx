@@ -9,10 +9,11 @@ import {
   Bell, Lock, Settings, Activity, FileText, Globe, Workflow,
   BookOpen, Tag, MessageSquare, Star, Heart, Share2, Bookmark,
   Phone, MapPinned, Percent, Receipt, Truck, ShoppingCart,
-  Network, Boxes, BarChart3, GitBranch, Hexagon,
+  Network, Boxes, BarChart3, GitBranch, Hexagon, Loader2,
 } from 'lucide-react';
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useDatabaseNode } from '@/hooks/use-database-node';
 
 /* ─── Database Engine Types ─── */
 type DbEngine = 'sql' | 'nosql' | 'vector' | 'graph' | 'timeseries' | 'keyvalue';
@@ -615,6 +616,57 @@ function parseSchema(node: CanvasNode): { tables: DbTable[]; relations: DbRelati
   return { tables: [], relations: [] };
 }
 
+function generateMigrationSQL(tables: DbTable[], relations: DbRelation[], engine: DbEngine): string {
+  if (engine !== 'sql') {
+    return `-- Migration not supported for ${engine} engine\n-- Please use the appropriate tool for your database type`;
+  }
+
+  const typeMap: Record<ColumnType, string> = {
+    uuid: 'uuid', serial: 'serial', text: 'text', varchar: 'varchar(255)',
+    integer: 'integer', bigint: 'bigint', float: 'real', decimal: 'decimal',
+    boolean: 'boolean', date: 'date', timestamp: 'timestamp', timestamptz: 'timestamptz',
+    json: 'json', jsonb: 'jsonb', array: 'text[]', enum: 'text', bytea: 'bytea',
+    object: 'jsonb', objectId: 'text', string: 'text', number: 'numeric', map: 'jsonb', reference: 'uuid',
+    vector: 'vector', embedding: 'vector', sparse_vector: 'jsonb', metadata: 'jsonb',
+    node_label: 'text', relationship: 'text', property: 'jsonb',
+    time: 'timestamptz', field: 'numeric', tag_ts: 'text', measurement: 'text',
+    key: 'text', value: 'text', hash_kv: 'jsonb', sorted_set: 'jsonb', list_kv: 'text[]', ttl: 'integer',
+  };
+
+  let sql = `-- Auto-generated migration\n-- Generated at: ${new Date().toISOString()}\n\n`;
+
+  tables.forEach(table => {
+    sql += `-- Create table: ${table.name}\n`;
+    sql += `CREATE TABLE IF NOT EXISTS ${table.name} (\n`;
+
+    const columnDefs = table.columns.map(col => {
+      const parts = [`  ${col.name} ${typeMap[col.type] || 'text'}`];
+      if (col.isPrimary) parts.push('PRIMARY KEY');
+      if (!col.isNullable) parts.push('NOT NULL');
+      if (col.isUnique && !col.isPrimary) parts.push('UNIQUE');
+      if (col.defaultValue) parts.push(`DEFAULT ${col.defaultValue}`);
+      return parts.join(' ');
+    });
+
+    sql += columnDefs.join(',\n');
+    sql += `\n);\n\n`;
+
+    table.columns.forEach(col => {
+      if (col.reference) {
+        const refTable = tables.find(t => t.id === col.reference?.tableId);
+        const refCol = refTable?.columns.find(c => c.id === col.reference?.columnId);
+        if (refTable && refCol) {
+          sql += `-- Add foreign key: ${table.name}.${col.name} -> ${refTable.name}.${refCol.name}\n`;
+          sql += `ALTER TABLE ${table.name} ADD CONSTRAINT fk_${table.name}_${col.name}\n`;
+          sql += `  FOREIGN KEY (${col.name}) REFERENCES ${refTable.name}(${refCol.name});\n\n`;
+        }
+      }
+    });
+  });
+
+  return sql;
+}
+
 function generatePreviewHtml(tables: DbTable[], relations: DbRelation[], title: string, engine: DbEngine): string {
   const eLabel = entityLabel[engine];
   const tablesHtml = tables.map(t => {
@@ -638,12 +690,19 @@ function generatePreviewHtml(tables: DbTable[], relations: DbRelation[], title: 
 interface Props { node: CanvasNode; onClose: () => void; }
 
 export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
-  const { updateNode, nodes } = useCanvasStore();
+  const { updateNode, nodes, projectId } = useCanvasStore();
+  const databaseNode = useDatabaseNode(node.id);
 
   // Find environment variables from connected nodes
   const connectedEnvVars = nodes
     .filter(n => n.type === 'env' && (node.connectedTo.includes(n.id) || n.connectedTo.includes(node.id)))
     .reduce((acc, n) => ({ ...acc, ...(n.envVars || {}) }), {} as Record<string, string>);
+
+  useEffect(() => {
+    if (!databaseNode.isInitialized && !databaseNode.isInitializing) {
+      databaseNode.initializeDatabase(node.title, projectId || undefined);
+    }
+  }, [databaseNode, node.title, projectId]);
 
   const [dbEngine, setDbEngine] = useState<DbEngine>(() => {
     const parsed = parseSchema(node);
@@ -705,17 +764,20 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
     setIsDirty(true);
   }, [pushHistory]);
 
-  const saveToNode = useCallback(() => {
+  const saveToNode = useCallback(async () => {
     const code = JSON.stringify({ ...schema, engine: dbEngine }, null, 2);
     const preview = generatePreviewHtml(schema.tables, schema.relations, node.title, dbEngine);
 
     const existingFiles = node.generatedFiles?.filter(f =>
-      f.path !== 'schema.json' && f.path !== 'index.html'
+      f.path !== 'schema.json' && f.path !== 'index.html' && f.path !== 'migration.sql'
     ) || [];
+
+    const migrationSQL = generateMigrationSQL(schema.tables, schema.relations, dbEngine);
 
     const generatedFiles = [
       { path: 'schema.json', content: code, language: 'json' },
       { path: 'index.html', content: preview, language: 'html' },
+      { path: 'migration.sql', content: migrationSQL, language: 'sql' },
       ...existingFiles,
     ];
 
@@ -726,8 +788,18 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
       content: preview,
       generatedFiles,
     });
+
+    if (databaseNode.isInitialized && dbEngine === 'sql') {
+      try {
+        await databaseNode.executeSQL(migrationSQL);
+        await databaseNode.refreshTables();
+      } catch (error) {
+        console.error('Failed to apply schema to database:', error);
+      }
+    }
+
     setIsDirty(false);
-  }, [schema, dbEngine, node.id, node.title, node.generatedFiles, updateNode]);
+  }, [schema, dbEngine, node.id, node.title, node.generatedFiles, updateNode, databaseNode]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -991,6 +1063,22 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
           </div>
 
           <span className="text-[9px] text-white/30 ml-2">{node.title}</span>
+
+          {databaseNode.isInitializing && (
+            <span className="text-[9px] font-bold text-amber-400 ml-4 flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" /> Initializing database...
+            </span>
+          )}
+
+          {databaseNode.isInitialized && databaseNode.schemaName && (
+            <span className="text-[9px] font-bold text-emerald-400 ml-4 flex items-center gap-1" title={`Isolated PostgreSQL schema: ${databaseNode.schemaName}`}>
+              <Database className="w-3 h-3" /> {databaseNode.schemaName}
+              {databaseNode.tables.length > 0 && (
+                <span className="text-white/40">· {databaseNode.tables.length} tables</span>
+              )}
+            </span>
+          )}
+
           {connectingFrom && (
             <span className="text-[9px] font-bold text-cyan-400 animate-pulse ml-4 flex items-center gap-1">
               <Link2 className="w-3 h-3" /> Click target {eLabel.toLowerCase()} to connect...
