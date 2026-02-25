@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Pool, PoolClient } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface DatabaseSandbox {
@@ -40,18 +40,18 @@ export interface SandboxTable {
 }
 
 export class DatabaseSandboxManager {
-  private supabase: SupabaseClient;
+  private pool: Pool;
   private sandboxes: Map<string, DatabaseSandbox> = new Map();
   private maxSandboxes: number = 100;
   private sandboxTimeout: number = 60 * 60 * 1000; // 1 hour
 
   constructor() {
-    this.supabase = createClient(
-      process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.VITE_SUPABASE_ANON_KEY ||
-      process.env.SUPABASE_ANON_KEY || ''
-    );
+    this.pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    });
 
     this.initializeCleanup();
   }
@@ -81,16 +81,15 @@ export class DatabaseSandboxManager {
       expiresAt: new Date(Date.now() + this.sandboxTimeout),
       tables: [],
       connectionInfo: {
-        host: process.env.SUPABASE_DB_HOST || 'localhost',
-        port: parseInt(process.env.SUPABASE_DB_PORT || '5432'),
-        database: process.env.SUPABASE_DB_NAME || 'postgres',
+        host: process.env.DATABASE_HOST || 'localhost',
+        port: parseInt(process.env.DATABASE_PORT || '5432'),
+        database: process.env.DATABASE_NAME || 'postgres',
         schema: schemaName,
       },
     };
 
     try {
       await this.createSchema(schemaName);
-
       await this.grantSchemaPermissions(schemaName, userId);
 
       sandbox.status = 'ready';
@@ -141,29 +140,23 @@ export class DatabaseSandboxManager {
       throw new Error('Query not allowed or potentially dangerous');
     }
 
+    const client = await this.pool.connect();
     try {
-      const prefixedQuery = `SET search_path TO ${sandbox.schemaName}; ${query}`;
-
-      const { data, error } = await this.supabase.rpc('execute_sandbox_query', {
-        sandbox_schema: sandbox.schemaName,
-        query_text: prefixedQuery,
-        query_params: params || [],
-      });
-
-      if (error) {
-        throw error;
-      }
+      await client.query(`SET search_path TO ${sandbox.schemaName}`);
+      const result = await client.query(query, params);
 
       await this.extendSandbox(sandboxId, 60);
 
       return {
-        data: data || [],
-        rowCount: Array.isArray(data) ? data.length : 0,
+        data: result.rows || [],
+        rowCount: result.rowCount || 0,
       };
     } catch (error) {
       throw new Error(
         `Query execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
+    } finally {
+      client.release();
     }
   }
 
@@ -232,11 +225,11 @@ export class DatabaseSandboxManager {
     const query = `
       SELECT table_name
       FROM information_schema.tables
-      WHERE table_schema = '${sandbox.schemaName}'
+      WHERE table_schema = $1
       ORDER BY table_name;
     `;
 
-    const { data } = await this.executeQuery(sandboxId, query);
+    const { data } = await this.executeQuery(sandboxId, query, [sandbox.schemaName]);
     return data.map((row: any) => row.table_name);
   }
 
@@ -256,22 +249,22 @@ export class DatabaseSandboxManager {
         is_nullable,
         column_default
       FROM information_schema.columns
-      WHERE table_schema = '${sandbox.schemaName}'
-        AND table_name = '${tableName}'
+      WHERE table_schema = $1
+        AND table_name = $2
       ORDER BY ordinal_position;
     `;
 
-    const { data: columns } = await this.executeQuery(sandboxId, columnsQuery);
+    const { data: columns } = await this.executeQuery(sandboxId, columnsQuery, [sandbox.schemaName, tableName]);
 
     const pkQuery = `
       SELECT a.attname
       FROM pg_index i
       JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-      WHERE i.indrelid = '${sandbox.schemaName}.${tableName}'::regclass
+      WHERE i.indrelid = ($1 || '.' || $2)::regclass
         AND i.indisprimary;
     `;
 
-    const { data: pkData } = await this.executeQuery(sandboxId, pkQuery);
+    const { data: pkData } = await this.executeQuery(sandboxId, pkQuery, [sandbox.schemaName, tableName]);
     const primaryKey = pkData.map((row: any) => row.attname);
 
     return {
@@ -336,10 +329,10 @@ export class DatabaseSandboxManager {
       const listQuery = `
         SELECT table_name
         FROM information_schema.tables
-        WHERE table_schema = '${productionSchema}'
+        WHERE table_schema = $1
         AND table_type = 'BASE TABLE';
       `;
-      const { data } = await this.executeQuery(sandboxId, listQuery);
+      const { data } = await this.executeQuery(sandboxId, listQuery, [productionSchema]);
       tablesToClone.push(...data.map((row: any) => row.table_name));
     }
 
@@ -421,12 +414,12 @@ export class DatabaseSandboxManager {
     }
 
     const sizeQuery = `
-      SELECT pg_total_relation_size('${sandbox.schemaName}.' || quote_ident(tablename))::bigint as size
+      SELECT pg_total_relation_size($1 || '.' || quote_ident(tablename))::bigint as size
       FROM pg_tables
-      WHERE schemaname = '${sandbox.schemaName}';
+      WHERE schemaname = $1;
     `;
 
-    const { data: sizeData } = await this.executeQuery(sandboxId, sizeQuery);
+    const { data: sizeData } = await this.executeQuery(sandboxId, sizeQuery, [sandbox.schemaName]);
     const sizeBytes = sizeData.reduce(
       (sum: number, row: any) => sum + parseInt(row.size || '0'),
       0
@@ -440,20 +433,22 @@ export class DatabaseSandboxManager {
   }
 
   private async createSchema(schemaName: string): Promise<void> {
-    const query = `CREATE SCHEMA IF NOT EXISTS ${schemaName};`;
-    const { error } = await this.supabase.rpc('exec_sql', { sql: query });
-
-    if (error) {
-      throw error;
+    const client = await this.pool.connect();
+    try {
+      await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+    } finally {
+      client.release();
     }
   }
 
   private async dropSchema(schemaName: string): Promise<void> {
-    const query = `DROP SCHEMA IF EXISTS ${schemaName} CASCADE;`;
-    const { error } = await this.supabase.rpc('exec_sql', { sql: query });
-
-    if (error) {
+    const client = await this.pool.connect();
+    try {
+      await client.query(`DROP SCHEMA IF EXISTS ${schemaName} CASCADE`);
+    } catch (error) {
       console.error(`Failed to drop schema: ${error}`);
+    } finally {
+      client.release();
     }
   }
 
@@ -461,17 +456,15 @@ export class DatabaseSandboxManager {
     schemaName: string,
     userId: string
   ): Promise<void> {
-    const query = `
-      GRANT USAGE ON SCHEMA ${schemaName} TO authenticated;
-      GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA ${schemaName} TO authenticated;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA ${schemaName}
-        GRANT ALL ON TABLES TO authenticated;
-    `;
-
-    const { error } = await this.supabase.rpc('exec_sql', { sql: query });
-
-    if (error) {
+    const client = await this.pool.connect();
+    try {
+      await client.query(`GRANT USAGE ON SCHEMA ${schemaName} TO PUBLIC`);
+      await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA ${schemaName} TO PUBLIC`);
+      await client.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA ${schemaName} GRANT ALL ON TABLES TO PUBLIC`);
+    } catch (error) {
       console.error(`Failed to grant permissions: ${error}`);
+    } finally {
+      client.release();
     }
   }
 
