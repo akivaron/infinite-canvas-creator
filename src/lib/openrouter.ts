@@ -1,3 +1,5 @@
+import { fetchWithRetry } from './fetchWithRetry';
+
 export interface OpenRouterModel {
   id: string;
   name: string;
@@ -11,7 +13,7 @@ export interface OpenRouterModel {
 
 export async function fetchOpenRouterModels(): Promise<{ id: string; name: string; free: boolean }[]> {
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/models');
+    const response = await fetchWithRetry('https://openrouter.ai/api/v1/models');
     if (!response.ok) throw new Error('Failed to fetch models');
     const data = await response.json();
     
@@ -54,7 +56,7 @@ Return ONLY a JSON object with this structure:
   "caption": "a short, catchy 3-5 word title for this project"
 }`;
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -105,7 +107,7 @@ export async function generateOpenRouterCompletion(
   try {
     onProgress?.('thinking', 'Analyzing request...', model.split('/').pop());
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,

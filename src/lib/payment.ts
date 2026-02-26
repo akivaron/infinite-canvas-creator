@@ -1,3 +1,14 @@
+import { fetchWithRetry } from './fetchWithRetry';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+}
 
 export type PaymentProvider = 'Stripe' | 'PayPal' | 'Paddle' | 'LemonSqueezy';
 
@@ -50,7 +61,7 @@ async function callPaymentFunction(endpoint: string, params: Record<string, unkn
     throw new Error('Supabase configuration missing');
   }
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/${endpoint}`, {
+  const response = await fetchWithRetry(`${supabaseUrl}/functions/v1/${endpoint}`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${supabaseAnonKey}`,
@@ -178,19 +189,16 @@ async function createPaddlePayment(params: Omit<CreatePaymentParams, 'provider'>
 }
 
 export async function getPaymentIntents(projectId?: string): Promise<PaymentIntent[]> {
-  let query = db.from('payment_intents').select('*').order('created_at', { ascending: false });
-
-  if (projectId) {
-    query = query.eq('project_id', projectId);
+  const url = projectId
+    ? `${API_URL}/payments/intents?projectId=${encodeURIComponent(projectId)}`
+    : `${API_URL}/payments/intents`;
+  const res = await fetchWithRetry(url, { headers: getAuthHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to list payment intents');
   }
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw error;
-  }
-
-  return data || [];
+  const data = await res.json();
+  return data.data ?? [];
 }
 
 export async function getPaymentIntent(id: string): Promise<PaymentIntent | null> {

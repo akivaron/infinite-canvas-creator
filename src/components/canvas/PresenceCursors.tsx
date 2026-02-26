@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useCollaboration } from '@/hooks/use-collaboration';
+import { useCollaborationContext } from '@/contexts/CollaborationContext';
 import { useEffect, useState } from 'react';
 
 interface PresenceCursorsProps {
@@ -10,7 +10,7 @@ interface PresenceCursorsProps {
 }
 
 export function PresenceCursors({ projectId, zoom, panX, panY }: PresenceCursorsProps) {
-  const { activeUsers } = useCollaboration(projectId);
+  const { activeUsers } = useCollaborationContext();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export function PresenceCursors({ projectId, zoom, panX, panY }: PresenceCursors
 }
 
 export function PresenceAvatars({ projectId }: { projectId: string }) {
-  const { activeUsers } = useCollaboration(projectId);
+  const { activeUsers } = useCollaborationContext();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {

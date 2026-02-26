@@ -1,3 +1,5 @@
+import { fetchWithRetry } from './fetchWithRetry';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 interface AuthResponse {
@@ -48,7 +50,7 @@ class ApiClient {
   }
 
   async register(email: string, password: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/auth/register`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ email, password }),
@@ -65,7 +67,7 @@ class ApiClient {
   }
 
   async login(email: string, password: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ email, password }),
@@ -83,7 +85,7 @@ class ApiClient {
 
   async logout(): Promise<void> {
     try {
-      await fetch(`${API_BASE_URL}/auth/logout`, {
+      await fetchWithRetry(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
         headers: this.getHeaders(),
       });
@@ -95,7 +97,7 @@ class ApiClient {
   }
 
   async getMe(): Promise<UserProfile> {
-    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/auth/me`, {
       method: 'GET',
       headers: this.getHeaders(),
     });
@@ -110,7 +112,7 @@ class ApiClient {
   }
 
   async updateProfile(updates: Partial<UserProfile>): Promise<UserProfile> {
-    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/auth/profile`, {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(updates),

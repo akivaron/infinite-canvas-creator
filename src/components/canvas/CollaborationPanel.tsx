@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useCollaboration } from '@/hooks/use-collaboration';
+import { useCollaborationContext } from '@/contexts/CollaborationContext';
 import * as collaboration from '@/lib/collaboration';
 import { useToast } from '@/hooks/use-toast';
 
@@ -22,7 +22,7 @@ export function CollaborationPanel({ projectId, onClose }: CollaborationPanelPro
   const [showInvitations, setShowInvitations] = useState(false);
   const [invitations, setInvitations] = useState<any[]>([]);
 
-  const { collaborators, activeUsers, refreshCollaborators } = useCollaboration(projectId);
+  const { collaborators, activeUsers, refreshCollaborators } = useCollaborationContext();
   const { toast } = useToast();
 
   const handleInvite = async () => {

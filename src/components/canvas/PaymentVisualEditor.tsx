@@ -175,6 +175,19 @@ function generatePaymentPreviewHtml(config: PaymentConfig, title: string): strin
       const SUPABASE_URL = '${typeof window !== 'undefined' && 'VITE_SUPABASE_URL' in import.meta.env ? import.meta.env.VITE_SUPABASE_URL : ''}';
       const SUPABASE_ANON_KEY = '${typeof window !== 'undefined' && 'VITE_SUPABASE_ANON_KEY' in import.meta.env ? import.meta.env.VITE_SUPABASE_ANON_KEY : ''}';
 
+      async function fetchWithRetry(url, opts) {
+        let last;
+        for (let i = 0; i < 2; i++) {
+          try {
+            last = await fetch(url, opts);
+            if (last.ok) return last;
+          } catch (e) {
+            if (i === 1) throw e;
+          }
+        }
+        return last;
+      }
+
       function showStatus(message, type) {
         const container = document.getElementById('status-container');
         const status = document.createElement('div');
@@ -212,7 +225,7 @@ function generatePaymentPreviewHtml(config: PaymentConfig, title: string): strin
       }
 
       async function handleStripePayment(planId, amount, currency, planName, button) {
-        const response = await fetch(SUPABASE_URL + '/functions/v1/create-payment-intent', {
+        const response = await fetchWithRetry(SUPABASE_URL + '/functions/v1/create-payment-intent', {
           method: 'POST',
           headers: {
             'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
@@ -239,7 +252,7 @@ function generatePaymentPreviewHtml(config: PaymentConfig, title: string): strin
       }
 
       async function handlePayPalPayment(planId, amount, currency, planName, button) {
-        const response = await fetch(SUPABASE_URL + '/functions/v1/paypal-create-order', {
+        const response = await fetchWithRetry(SUPABASE_URL + '/functions/v1/paypal-create-order', {
           method: 'POST',
           headers: {
             'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
@@ -264,7 +277,7 @@ function generatePaymentPreviewHtml(config: PaymentConfig, title: string): strin
       }
 
       async function handleLemonSqueezyPayment(planId, amount, currency, planName, button) {
-        const response = await fetch(SUPABASE_URL + '/functions/v1/lemonsqueezy-create-checkout', {
+        const response = await fetchWithRetry(SUPABASE_URL + '/functions/v1/lemonsqueezy-create-checkout', {
           method: 'POST',
           headers: {
             'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
@@ -290,7 +303,7 @@ function generatePaymentPreviewHtml(config: PaymentConfig, title: string): strin
       }
 
       async function handlePaddlePayment(planId, amount, currency, planName, button) {
-        const response = await fetch(SUPABASE_URL + '/functions/v1/paddle-create-transaction', {
+        const response = await fetchWithRetry(SUPABASE_URL + '/functions/v1/paddle-create-transaction', {
           method: 'POST',
           headers: {
             'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,

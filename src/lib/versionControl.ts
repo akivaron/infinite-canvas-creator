@@ -1,4 +1,6 @@
 import type { CanvasNode } from '@/stores/canvasStore';
+import { apiClient } from './api';
+import { logActivity } from './collaboration';
 
 export interface ProjectVersion {
   id: string;
@@ -39,6 +41,9 @@ export const versionControl = {
 
       const versionNumber = nextVersionData || 1;
 
+      const user = await apiClient.getMe();
+      const userId = user?.id ?? null;
+
       const { data, error } = await supabase
         .from('project_versions')
         .insert({
@@ -50,24 +55,17 @@ export const versionControl = {
           },
           changes_summary: changesSummary,
           tag,
-          created_by: (await db.auth.getUser()).data.user?.id,
+          created_by: userId,
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      await db.from('project_activity').insert({
-        project_id: projectId,
-        user_id: (await db.auth.getUser()).data.user?.id,
-        action_type: 'version_created',
-        entity_type: 'version',
-        entity_id: data.id,
-        details: {
-          version_number: versionNumber,
-          changes_summary: changesSummary,
-          tag,
-        },
+      await logActivity(projectId, userId ?? '', 'version_created', 'version', data.id, {
+        version_number: versionNumber,
+        changes_summary: changesSummary,
+        tag,
       });
 
       return { success: true, version: data };
@@ -148,15 +146,9 @@ export const versionControl = {
 
       if (updateError) throw updateError;
 
-      await db.from('project_activity').insert({
-        project_id: projectId,
-        user_id: (await db.auth.getUser()).data.user?.id,
-        action_type: 'version_restored',
-        entity_type: 'version',
-        entity_id: versionId,
-        details: {
-          version_number: versionResult.version.version_number,
-        },
+      const user = await apiClient.getMe();
+      await logActivity(projectId, user?.id ?? '', 'version_restored', 'version', versionId, {
+        version_number: versionResult.version.version_number,
       });
 
       return { success: true, nodes };

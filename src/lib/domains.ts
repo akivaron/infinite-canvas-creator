@@ -1,3 +1,5 @@
+import { fetchWithRetry } from './fetchWithRetry';
+
 const API_BASE = 'http://localhost:3001';
 
 export interface DomainAvailability {
@@ -42,7 +44,7 @@ export const checkDomainAvailability = async (
   domain: string,
   userId: string
 ): Promise<DomainAvailability> => {
-  const response = await fetch(`${API_BASE}/api/domains/check`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/domains/check`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -61,7 +63,7 @@ export const checkMultipleDomains = async (
   domains: string[],
   userId: string
 ): Promise<{ results: DomainAvailability[] }> => {
-  const response = await fetch(`${API_BASE}/api/domains/check-multiple`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/domains/check-multiple`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -83,7 +85,7 @@ export const purchaseDomain = async (params: {
   years?: number;
   autoRenew?: boolean;
 }): Promise<{ success: boolean; domain: Domain; orderId: string }> => {
-  const response = await fetch(`${API_BASE}/api/domains/purchase`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/domains/purchase`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -100,7 +102,7 @@ export const purchaseDomain = async (params: {
 };
 
 export const listUserDomains = async (userId: string): Promise<{ domains: Domain[] }> => {
-  const response = await fetch(`${API_BASE}/api/domains/list?userId=${userId}`);
+  const response = await fetchWithRetry(`${API_BASE}/api/domains/list?userId=${userId}`);
 
   if (!response.ok) {
     throw new Error('Failed to list domains');
@@ -110,7 +112,7 @@ export const listUserDomains = async (userId: string): Promise<{ domains: Domain
 };
 
 export const getDomainDetails = async (domainId: string): Promise<{ domain: Domain }> => {
-  const response = await fetch(`${API_BASE}/api/domains/${domainId}`);
+  const response = await fetchWithRetry(`${API_BASE}/api/domains/${domainId}`);
 
   if (!response.ok) {
     throw new Error('Failed to get domain details');
@@ -123,7 +125,7 @@ export const configureDNS = async (
   domainId: string,
   records: DNSRecord[]
 ): Promise<{ success: boolean; records: DNSRecord[] }> => {
-  const response = await fetch(`${API_BASE}/api/domains/${domainId}/configure-dns`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/domains/${domainId}/configure-dns`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -142,7 +144,7 @@ export const enableSSL = async (
   domainId: string,
   provider: string = 'letsencrypt'
 ): Promise<{ success: boolean; ssl_enabled: boolean; provider: string }> => {
-  const response = await fetch(`${API_BASE}/api/domains/${domainId}/enable-ssl`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/domains/${domainId}/enable-ssl`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -158,7 +160,7 @@ export const enableSSL = async (
 };
 
 export const deleteDomain = async (domainId: string): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/api/domains/${domainId}`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/domains/${domainId}`, {
     method: 'DELETE',
   });
 
@@ -173,7 +175,7 @@ export const getDomainCheckHistory = async (
   userId: string,
   limit: number = 20
 ): Promise<{ checks: any[] }> => {
-  const response = await fetch(`${API_BASE}/api/domains/history?userId=${userId}&limit=${limit}`);
+  const response = await fetchWithRetry(`${API_BASE}/api/domains/history?userId=${userId}&limit=${limit}`);
 
   if (!response.ok) {
     throw new Error('Failed to get domain check history');

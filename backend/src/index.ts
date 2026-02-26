@@ -16,6 +16,7 @@ import dbsandboxRoutes from './routes/dbsandbox.js';
 import deployRoutes from './routes/deploy.js';
 import domainsRoutes from './routes/domains.js';
 import paymentsRoutes from './routes/payments.js';
+import collaborationRoutes from './routes/collaboration.js';
 import { embeddingService } from './services/embeddingService.js';
 import { swaggerSpec } from './config/swagger.js';
 import db from './config/database.js';
@@ -159,6 +160,7 @@ app.use('/api/dbsandbox', dbsandboxRoutes);
 app.use('/api/deploy', deployRoutes);
 app.use('/api/domains', domainsRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/collaboration', collaborationRoutes);
 
 app.post('/api/db/query', async (req, res) => {
   try {
@@ -178,6 +180,33 @@ app.post('/api/db/query', async (req, res) => {
     console.error('Database query error:', error);
     res.status(500).json({
       error: error.message || 'Database query failed',
+    });
+  }
+});
+
+app.post('/api/db/batch', async (req, res) => {
+  try {
+    const { queries } = req.body;
+
+    if (!Array.isArray(queries) || queries.length === 0) {
+      return res.status(400).json({ error: 'queries array is required and must not be empty' });
+    }
+
+    const results: Array<{ rows: any[]; rowCount: number }> = [];
+    for (const q of queries) {
+      const { sql, params = [] } = q;
+      if (!sql) {
+        return res.status(400).json({ error: 'Each query must have a sql string' });
+      }
+      const result = await db.query(sql, params);
+      results.push({ rows: result.rows ?? [], rowCount: result.rowCount ?? 0 });
+    }
+
+    res.json({ results });
+  } catch (error: any) {
+    console.error('Database batch query error:', error);
+    res.status(500).json({
+      error: error.message || 'Database batch query failed',
     });
   }
 });

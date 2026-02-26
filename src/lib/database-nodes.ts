@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { fetchWithRetry } from './fetchWithRetry';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export interface DatabaseNode {
   id: string;
@@ -38,7 +40,7 @@ async function getAuthHeaders() {
 export async function createDatabaseNode(request: CreateDatabaseNodeRequest): Promise<DatabaseNode> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_URL}/api/database-nodes/create`, {
+  const response = await fetchWithRetry(`${API_URL}/database-nodes/create`, {
     method: 'POST',
     headers,
     body: JSON.stringify(request),
@@ -56,7 +58,7 @@ export async function createDatabaseNode(request: CreateDatabaseNodeRequest): Pr
 export async function listDatabaseNodes(): Promise<DatabaseNode[]> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_URL}/api/database-nodes/list`, {
+  const response = await fetchWithRetry(`${API_URL}/database-nodes/list`, {
     method: 'GET',
     headers,
   });
@@ -73,7 +75,7 @@ export async function listDatabaseNodes(): Promise<DatabaseNode[]> {
 export async function getDatabaseNode(nodeId: string): Promise<DatabaseNode> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_URL}/api/database-nodes/${nodeId}`, {
+  const response = await fetchWithRetry(`${API_URL}/database-nodes/${nodeId}`, {
     method: 'GET',
     headers,
   });
@@ -90,7 +92,7 @@ export async function getDatabaseNode(nodeId: string): Promise<DatabaseNode> {
 export async function executeSQLInNode(nodeId: string, sql: string): Promise<SQLResult> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_URL}/api/database-nodes/${nodeId}/execute`, {
+  const response = await fetchWithRetry(`${API_URL}/database-nodes/${nodeId}/execute`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ sql }),
@@ -108,7 +110,7 @@ export async function executeSQLInNode(nodeId: string, sql: string): Promise<SQL
 export async function getNodeTables(nodeId: string): Promise<Array<{ table_name: string; table_type: string }>> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_URL}/api/database-nodes/${nodeId}/tables`, {
+  const response = await fetchWithRetry(`${API_URL}/database-nodes/${nodeId}/tables`, {
     method: 'GET',
     headers,
   });
@@ -125,7 +127,7 @@ export async function getNodeTables(nodeId: string): Promise<Array<{ table_name:
 export async function deleteDatabaseNode(nodeId: string): Promise<void> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_URL}/api/database-nodes/${nodeId}`, {
+  const response = await fetchWithRetry(`${API_URL}/database-nodes/${nodeId}`, {
     method: 'DELETE',
     headers,
   });

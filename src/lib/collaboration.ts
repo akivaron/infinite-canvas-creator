@@ -1,3 +1,14 @@
+import { fetchWithRetry } from './fetchWithRetry';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+}
 
 export interface Collaborator {
   id: string;
@@ -48,17 +59,85 @@ export interface Activity {
   entity_type: string;
   entity_id?: string;
   metadata?: any;
+  details?: any;
   created_at: string;
+}
+
+/** Load collaborators, activity, and active users (single API call). */
+export async function getCollaborationInitialData(projectId: string): Promise<{
+  collaborators: Collaborator[];
+  activity: Activity[];
+  activeUsers: UserPresence[];
+}> {
+  try {
+    const res = await fetchWithRetry(
+      `${API_URL}/collaboration/initial?projectId=${encodeURIComponent(projectId)}`,
+      { headers: getAuthHeaders() }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to load collaboration data');
+    }
+    const data = await res.json();
+    return {
+      collaborators: data.collaborators ?? [],
+      activity: (data.activity ?? []).map((a: Activity) => ({ ...a, metadata: a.metadata ?? a.details })),
+      activeUsers: data.activeUsers ?? [],
+    };
+  } catch (error) {
+    console.error('Error fetching collaboration initial data:', error);
+    return { collaborators: [], activity: [], activeUsers: [] };
+  }
+}
+
+// Dedupe: only one in-flight refresh request per projectId (fixes 2x hit from Strict Mode / double call)
+let refreshPromise: Promise<{ activity: Activity[]; activeUsers: UserPresence[] }> | null = null;
+let refreshProjectId: string | null = null;
+
+/** Refresh activity and active users (single API call). Deduped so concurrent calls = 1 request. */
+export async function getCollaborationRefreshData(projectId: string): Promise<{
+  activity: Activity[];
+  activeUsers: UserPresence[];
+}> {
+  if (refreshPromise && refreshProjectId === projectId) {
+    return refreshPromise;
+  }
+  refreshProjectId = projectId;
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(
+        `${API_URL}/collaboration/refresh?projectId=${encodeURIComponent(projectId)}`,
+        { headers: getAuthHeaders() }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to refresh');
+      }
+      const data = await res.json();
+      return {
+        activity: (data.activity ?? []).map((a: Activity) => ({ ...a, metadata: a.metadata ?? a.details })),
+        activeUsers: data.activeUsers ?? [],
+      };
+    } catch (error) {
+      console.error('Error fetching collaboration refresh data:', error);
+      return { activity: [], activeUsers: [] };
+    } finally {
+      refreshPromise = null;
+      refreshProjectId = null;
+    }
+  })();
+  return refreshPromise;
 }
 
 export async function getProjectCollaborators(projectId: string): Promise<Collaborator[]> {
   try {
-    const result = await db.from('project_collaborators')
-      .select('*')
-      .eq('project_id', projectId)
-      .execute();
-
-    return result.data || [];
+    const res = await fetchWithRetry(
+      `${API_URL}/collaboration/collaborators?projectId=${encodeURIComponent(projectId)}`,
+      { headers: getAuthHeaders() }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data ?? [];
   } catch (error) {
     console.error('Error fetching collaborators:', error);
     return [];
@@ -72,36 +151,17 @@ export async function inviteCollaborator(
   userId: string
 ): Promise<Invitation | null> {
   try {
-    const token = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    const result = await db.from('project_invitations')
-      .insert({
-        project_id: projectId,
-        email,
-        role,
-        token,
-        invited_by: userId,
-        expires_at: expiresAt,
-        status: 'pending'
-      })
-      .execute();
-
-    if (result.error) {
-      throw result.error;
+    const res = await fetchWithRetry(`${API_URL}/collaboration/invite`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ projectId, email, role, userId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to invite');
     }
-
-    await db.from('project_activity')
-      .insert({
-        project_id: projectId,
-        user_id: userId,
-        action_type: 'invite_sent',
-        entity_type: 'invitation',
-        metadata: { email, role }
-      })
-      .execute();
-
-    return result.data?.[0] || null;
+    const data = await res.json();
+    return data.data ?? null;
   } catch (error) {
     console.error('Error inviting collaborator:', error);
     return null;
@@ -110,54 +170,15 @@ export async function inviteCollaborator(
 
 export async function acceptInvitation(token: string, userId: string): Promise<boolean> {
   try {
-    const invitationResult = await db.from('project_invitations')
-      .select('*')
-      .eq('token', token)
-      .eq('status', 'pending')
-      .single();
-
-    if (!invitationResult.data) {
-      throw new Error('Invitation not found or already accepted');
+    const res = await fetchWithRetry(`${API_URL}/collaboration/accept`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ token, userId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to accept');
     }
-
-    const invitation = invitationResult.data;
-
-    if (new Date(invitation.expires_at) < new Date()) {
-      await db.from('project_invitations')
-        .update({ status: 'expired' })
-        .eq('id', invitation.id)
-        .execute();
-      throw new Error('Invitation has expired');
-    }
-
-    await db.from('project_collaborators')
-      .insert({
-        project_id: invitation.project_id,
-        user_id: userId,
-        role: invitation.role,
-        invited_by: invitation.invited_by,
-        status: 'accepted',
-        accepted_at: new Date().toISOString()
-      })
-      .execute();
-
-    await db.from('project_invitations')
-      .update({
-        status: 'accepted',
-        accepted_at: new Date().toISOString()
-      })
-      .eq('id', invitation.id)
-      .execute();
-
-    await db.from('project_activity')
-      .insert({
-        project_id: invitation.project_id,
-        user_id: userId,
-        action_type: 'invitation_accepted',
-        entity_type: 'collaborator'
-      })
-      .execute();
-
     return true;
   } catch (error) {
     console.error('Error accepting invitation:', error);
@@ -171,21 +192,12 @@ export async function removeCollaborator(
   userId: string
 ): Promise<boolean> {
   try {
-    await db.from('project_collaborators')
-      .delete()
-      .eq('id', collaboratorId)
-      .execute();
-
-    await db.from('project_activity')
-      .insert({
-        project_id: projectId,
-        user_id: userId,
-        action_type: 'collaborator_removed',
-        entity_type: 'collaborator',
-        entity_id: collaboratorId
-      })
-      .execute();
-
+    const res = await fetchWithRetry(`${API_URL}/collaboration/remove`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ projectId, collaboratorId, userId }),
+    });
+    if (!res.ok) return false;
     return true;
   } catch (error) {
     console.error('Error removing collaborator:', error);
@@ -198,11 +210,12 @@ export async function updateCollaboratorRole(
   newRole: 'editor' | 'viewer'
 ): Promise<boolean> {
   try {
-    await db.from('project_collaborators')
-      .update({ role: newRole })
-      .eq('id', collaboratorId)
-      .execute();
-
+    const res = await fetchWithRetry(`${API_URL}/collaboration/role`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ collaboratorId, newRole }),
+    });
+    if (!res.ok) return false;
     return true;
   } catch (error) {
     console.error('Error updating collaborator role:', error);
@@ -216,14 +229,11 @@ export async function updateUserPresence(
   presence: Partial<UserPresence>
 ): Promise<void> {
   try {
-    await db.from('user_presence')
-      .upsert({
-        project_id: projectId,
-        user_id: userId,
-        ...presence,
-        last_active: new Date().toISOString()
-      })
-      .execute();
+    await fetchWithRetry(`${API_URL}/collaboration/presence`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ projectId, userId, ...presence }),
+    });
   } catch (error) {
     console.error('Error updating presence:', error);
   }
@@ -231,15 +241,8 @@ export async function updateUserPresence(
 
 export async function getActiveUsers(projectId: string): Promise<UserPresence[]> {
   try {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-
-    const result = await db.from('user_presence')
-      .select('*')
-      .eq('project_id', projectId)
-      .gt('last_active', fiveMinutesAgo)
-      .execute();
-
-    return result.data || [];
+    const { activeUsers } = await getCollaborationRefreshData(projectId);
+    return activeUsers;
   } catch (error) {
     console.error('Error fetching active users:', error);
     return [];
@@ -255,37 +258,40 @@ export async function logActivity(
   metadata?: any
 ): Promise<void> {
   try {
-    await db.from('project_activity')
-      .insert({
-        project_id: projectId,
-        user_id: userId,
-        action_type: actionType,
-        entity_type: entityType,
-        entity_id: entityId,
-        metadata: metadata
-      })
-      .execute();
+    await fetchWithRetry(`${API_URL}/collaboration/log-activity`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        projectId,
+        userId,
+        actionType,
+        entityType,
+        entityId,
+        metadata,
+      }),
+    });
   } catch (error) {
     console.error('Error logging activity:', error);
   }
 }
 
+const ACTIVITY_LIMIT = 20;
+
 export async function getProjectActivity(
   projectId: string,
-  limit: number = 50
+  limit: number = ACTIVITY_LIMIT
 ): Promise<Activity[]> {
   try {
-    const result = await db.from('project_activity')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-      .execute();
-
-    return result.data || [];
+    const res = await fetchWithRetry(
+      `${API_URL}/collaboration/activity?projectId=${encodeURIComponent(projectId)}&limit=${limit}`,
+      { headers: getAuthHeaders() }
+    );
+    if (!res.ok) throw new Error('Failed to load activity');
+    const data = await res.json();
+    return (data.data ?? []).map((a: Activity) => ({ ...a, metadata: a.metadata ?? a.details }));
   } catch (error) {
     console.error('Error fetching activity:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -294,14 +300,13 @@ export async function checkUserPermission(
   userId: string
 ): Promise<'owner' | 'editor' | 'viewer' | null> {
   try {
-    const result = await db.from('project_collaborators')
-      .select('role')
-      .eq('project_id', projectId)
-      .eq('user_id', userId)
-      .eq('status', 'accepted')
-      .single();
-
-    return result.data?.role || null;
+    const res = await fetchWithRetry(
+      `${API_URL}/collaboration/permission?projectId=${encodeURIComponent(projectId)}&userId=${encodeURIComponent(userId)}`,
+      { headers: getAuthHeaders() }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data ?? null;
   } catch (error) {
     return null;
   }
@@ -309,13 +314,13 @@ export async function checkUserPermission(
 
 export async function getPendingInvitations(projectId: string): Promise<Invitation[]> {
   try {
-    const result = await db.from('project_invitations')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('status', 'pending')
-      .execute();
-
-    return result.data || [];
+    const res = await fetchWithRetry(
+      `${API_URL}/collaboration/invitations?projectId=${encodeURIComponent(projectId)}`,
+      { headers: getAuthHeaders() }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data ?? [];
   } catch (error) {
     console.error('Error fetching invitations:', error);
     return [];
@@ -327,12 +332,12 @@ export const inviteUser = inviteCollaborator;
 
 export async function revokeInvitation(invitationId: string): Promise<boolean> {
   try {
-    await db.from('project_invitations')
-      .update({ status: 'revoked' })
-      .eq('id', invitationId)
-      .execute();
-
-    return true;
+    const res = await fetchWithRetry(`${API_URL}/collaboration/revoke-invitation`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ invitationId }),
+    });
+    return res.ok;
   } catch (error) {
     console.error('Error revoking invitation:', error);
     return false;

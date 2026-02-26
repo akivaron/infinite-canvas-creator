@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
+  getCollaborationInitialData,
+  getCollaborationRefreshData,
   getProjectCollaborators,
   getActiveUsers,
   getProjectActivity,
@@ -17,6 +19,9 @@ export function useCollaboration(projectId: string | null, enabled: boolean = tr
   const [error, setError] = useState<string | null>(null);
 
   const presenceIntervalRef = useRef<NodeJS.Timeout>();
+  const consecutiveFailuresRef = useRef(0);
+  const refreshInFlightRef = useRef(false);
+  const MAX_API_FAILURES = 2;
 
   const loadCollaborators = useCallback(async () => {
     if (!projectId) return;
@@ -72,19 +77,47 @@ export function useCollaboration(projectId: string | null, enabled: boolean = tr
   useEffect(() => {
     if (!projectId || !enabled) return;
 
+    consecutiveFailuresRef.current = 0;
     setIsLoading(true);
 
-    Promise.all([
-      loadCollaborators(),
-      loadActivity(),
-      loadActiveUsers()
-    ]).finally(() => {
-      setIsLoading(false);
-    });
+    getCollaborationInitialData(projectId)
+      .then(({ collaborators, activity, activeUsers }) => {
+        setCollaborators(collaborators);
+        setRecentActivity(activity);
+        setActiveUsers(activeUsers);
+      })
+      .catch((err) => {
+        console.error('Error loading collaboration data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load collaboration data');
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
 
-    presenceIntervalRef.current = setInterval(() => {
-      loadActiveUsers();
-      loadActivity();
+    presenceIntervalRef.current = setInterval(async () => {
+      if (consecutiveFailuresRef.current >= MAX_API_FAILURES) {
+        if (presenceIntervalRef.current) {
+          clearInterval(presenceIntervalRef.current);
+          presenceIntervalRef.current = undefined;
+        }
+        return;
+      }
+      if (refreshInFlightRef.current) return;
+      refreshInFlightRef.current = true;
+      try {
+        const { activity, activeUsers } = await getCollaborationRefreshData(projectId);
+        setRecentActivity(activity);
+        setActiveUsers(activeUsers);
+        consecutiveFailuresRef.current = 0;
+      } catch {
+        consecutiveFailuresRef.current += 1;
+        if (consecutiveFailuresRef.current >= MAX_API_FAILURES && presenceIntervalRef.current) {
+          clearInterval(presenceIntervalRef.current);
+          presenceIntervalRef.current = undefined;
+        }
+      } finally {
+        refreshInFlightRef.current = false;
+      }
     }, 5000);
 
     return () => {
@@ -92,7 +125,7 @@ export function useCollaboration(projectId: string | null, enabled: boolean = tr
         clearInterval(presenceIntervalRef.current);
       }
     };
-  }, [projectId, enabled, loadCollaborators, loadActivity, loadActiveUsers]);
+  }, [projectId, enabled]);
 
   return {
     activeUsers,

@@ -566,4 +566,59 @@ router.post('/calculate-storage', async (req, res) => {
   }
 });
 
+/** POST /api/deploy/subscriptions - body: { userId, planId, billingCycle } */
+router.post('/subscriptions', async (req: express.Request, res: express.Response) => {
+  try {
+    const { userId, planId, billingCycle = 'monthly' } = req.body;
+    if (!userId || !planId) {
+      return res.status(400).json({ error: 'userId and planId are required' });
+    }
+    const periodEnd = new Date(
+      Date.now() + (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000
+    ).toISOString();
+    await db.query(
+      `INSERT INTO user_subscriptions (user_id, plan_id, billing_cycle, status, current_period_start, current_period_end)
+       VALUES ($1, $2, $3, 'active', $4, $5)`,
+      [userId, planId, billingCycle, new Date().toISOString(), periodEnd]
+    );
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.error('Create subscription error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to create subscription',
+    });
+  }
+});
+
+/** POST /api/deploy/domains - body: { userId, deploymentId, domain } */
+router.post('/domains', async (req: express.Request, res: express.Response) => {
+  try {
+    const { userId, deploymentId, domain } = req.body;
+    if (!userId || !deploymentId || !domain) {
+      return res.status(400).json({ error: 'userId, deploymentId, and domain are required' });
+    }
+    const verificationToken = Math.random().toString(36).substring(7);
+    await db.query(
+      `INSERT INTO deployment_domains (deployment_id, user_id, domain, status, verification_token, dns_records)
+       VALUES ($1, $2, $3, 'pending', $4, $5)`,
+      [
+        deploymentId,
+        userId,
+        domain,
+        verificationToken,
+        JSON.stringify([
+          { type: 'A', name: '@', value: '0.0.0.0', ttl: 3600 },
+          { type: 'CNAME', name: 'www', value: 'your-domain.com', ttl: 3600 },
+        ]),
+      ]
+    );
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.error('Add domain error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to add domain',
+    });
+  }
+});
+
 export default router;

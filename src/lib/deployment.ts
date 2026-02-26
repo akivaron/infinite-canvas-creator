@@ -1,3 +1,5 @@
+import { fetchWithRetry } from './fetchWithRetry';
+import { apiClient } from './api';
 
 export interface Deployment {
   id: string;
@@ -56,6 +58,15 @@ export interface DeploymentMetrics {
 }
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+}
 
 export const deployment = {
   async listPlans(): Promise<{ success: boolean; plans?: HostingPlan[]; error?: string }> {
@@ -108,23 +119,18 @@ export const deployment = {
     billingCycle: 'monthly' | 'yearly'
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const user = (await db.auth.getUser()).data.user;
+      const user = await apiClient.getMe();
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await db.from('user_subscriptions').insert({
-        user_id: user.id,
-        plan_id: planId,
-        billing_cycle: billingCycle,
-        status: 'active',
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(
-          Date.now() +
-            (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000
-        ).toISOString(),
+      const res = await fetchWithRetry(`${API_URL}/deploy/subscriptions`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ userId: user.id, planId, billingCycle }),
       });
-
-      if (error) throw error;
-
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create subscription');
+      }
       return { success: true };
     } catch (error) {
       console.error('Error creating subscription:', error);
@@ -200,7 +206,7 @@ export const deployment = {
 
       if (error) throw error;
 
-      const buildResult = await fetch(`${BACKEND_URL}/api/deploy/build`, {
+      const buildResult = await fetchWithRetry(`${BACKEND_URL}/api/deploy/build`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -274,7 +280,7 @@ export const deployment = {
     deploymentId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const result = await fetch(`${BACKEND_URL}/api/deploy/stop`, {
+      const result = await fetchWithRetry(`${BACKEND_URL}/api/deploy/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deployment_id: deploymentId }),
@@ -413,33 +419,18 @@ export const deployment = {
     domain: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const user = (await db.auth.getUser()).data.user;
+      const user = await apiClient.getMe();
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await db.from('deployment_domains').insert({
-        deployment_id: deploymentId,
-        user_id: user.id,
-        domain,
-        status: 'pending',
-        verification_token: Math.random().toString(36).substring(7),
-        dns_records: [
-          {
-            type: 'A',
-            name: '@',
-            value: '0.0.0.0',
-            ttl: 3600,
-          },
-          {
-            type: 'CNAME',
-            name: 'www',
-            value: 'your-domain.com',
-            ttl: 3600,
-          },
-        ],
+      const res = await fetchWithRetry(`${API_URL}/deploy/domains`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ userId: user.id, deploymentId, domain }),
       });
-
-      if (error) throw error;
-
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to add domain');
+      }
       return { success: true };
     } catch (error) {
       console.error('Error adding custom domain:', error);

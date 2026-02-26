@@ -17,6 +17,31 @@ interface PaymentIntentRequest {
   metadata?: Record<string, string>;
 }
 
+/** GET /intents?projectId= - list payment intents (optional projectId filter) */
+router.get('/intents', async (req: Request, res: Response) => {
+  try {
+    const projectId = req.query.projectId as string | undefined;
+    let result;
+    if (projectId) {
+      result = await pool.query(
+        'SELECT * FROM payment_intents WHERE project_id = $1 ORDER BY created_at DESC',
+        [projectId]
+      );
+    } else {
+      result = await pool.query(
+        'SELECT * FROM payment_intents ORDER BY created_at DESC'
+      );
+    }
+    res.json({ data: result.rows ?? [] });
+  } catch (error) {
+    console.error('List payment intents error:', error);
+    res.status(500).json({
+      error: 'Failed to list payment intents',
+      details: String(error),
+    });
+  }
+});
+
 router.post('/stripe/create-payment-intent', async (req: Request, res: Response) => {
   try {
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;

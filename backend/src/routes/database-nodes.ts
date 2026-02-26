@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, type AuthRequest } from '../middleware/auth.js';
 import { pool } from '../config/database.js';
 
 const router = Router();
 
-router.post('/create', authenticateToken, async (req, res) => {
+router.post('/create', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { nodeId, displayName, projectId } = req.body;
-    const userId = req.user?.userId;
+    const userId = req.userId;
 
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -55,9 +55,9 @@ router.post('/create', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/list', authenticateToken, async (req, res) => {
+router.get('/list', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.userId;
 
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -81,9 +81,9 @@ router.get('/list', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/:nodeId', authenticateToken, async (req, res) => {
+router.get('/:nodeId', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.userId;
     const { nodeId } = req.params;
 
     if (!userId) {
@@ -111,9 +111,9 @@ router.get('/:nodeId', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/:nodeId/execute', authenticateToken, async (req, res) => {
+router.post('/:nodeId/execute', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.userId;
     const { nodeId } = req.params;
     const { sql } = req.body;
 
@@ -162,9 +162,9 @@ router.post('/:nodeId/execute', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/:nodeId/tables', authenticateToken, async (req, res) => {
+router.get('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.userId;
     const { nodeId } = req.params;
 
     if (!userId) {
@@ -200,9 +200,9 @@ router.get('/:nodeId/tables', authenticateToken, async (req, res) => {
   }
 });
 
-router.delete('/:nodeId', authenticateToken, async (req, res) => {
+router.delete('/:nodeId', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.userId;
     const { nodeId } = req.params;
 
     if (!userId) {

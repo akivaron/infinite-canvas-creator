@@ -22,6 +22,7 @@ import { SettingsModal } from '@/components/canvas/SettingsModal';
 import { VersionHistoryPanel } from '@/components/canvas/VersionHistoryPanel';
 import { CollaborationPanel } from '@/components/canvas/CollaborationPanel';
 import { DeploymentPanel } from '@/components/canvas/DeploymentPanel';
+import { CollaborationProvider } from '@/contexts/CollaborationContext';
 import { useState } from 'react';
 
 const ConnectingOverlay = () => {
@@ -62,6 +63,7 @@ const Index = () => {
   };
 
   return (
+    <CollaborationProvider projectId={projectId}>
     <div className="relative w-screen h-screen overflow-hidden bg-background">
       <InfiniteCanvas />
       <CanvasToolbar />
@@ -168,6 +170,7 @@ const Index = () => {
         )}
       </AnimatePresence>
     </div>
+    </CollaborationProvider>
   );
 };
 

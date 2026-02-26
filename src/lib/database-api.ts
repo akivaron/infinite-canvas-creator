@@ -1,4 +1,5 @@
 import { apiClient } from './api';
+import { fetchWithRetry } from './fetchWithRetry';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -41,7 +42,7 @@ class DatabaseAPI {
   }
 
   async createDatabase(nodeId: string, name: string): Promise<{ schemaName: string }> {
-    const response = await fetch(`${API_BASE_URL}/database/create`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/database/create`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ nodeId, name }),
@@ -56,7 +57,7 @@ class DatabaseAPI {
   }
 
   async deleteDatabase(nodeId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/database/${nodeId}`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}`, {
       method: 'DELETE',
       headers: this.getHeaders(),
     });
@@ -68,7 +69,7 @@ class DatabaseAPI {
   }
 
   async getSchema(nodeId: string): Promise<{ schemaName: string }> {
-    const response = await fetch(`${API_BASE_URL}/database/${nodeId}/schema`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/schema`, {
       method: 'GET',
       headers: this.getHeaders(),
     });
@@ -82,7 +83,7 @@ class DatabaseAPI {
   }
 
   async listTables(nodeId: string): Promise<string[]> {
-    const response = await fetch(`${API_BASE_URL}/database/${nodeId}/tables`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/tables`, {
       method: 'GET',
       headers: this.getHeaders(),
     });
@@ -101,7 +102,7 @@ class DatabaseAPI {
     tableName: string,
     columns: ColumnSchema[]
   ): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/database/${nodeId}/tables`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/tables`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ tableName, columns }),
@@ -114,7 +115,7 @@ class DatabaseAPI {
   }
 
   async dropTable(nodeId: string, tableName: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/database/${nodeId}/tables/${tableName}`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/tables/${tableName}`, {
       method: 'DELETE',
       headers: this.getHeaders(),
     });
@@ -126,7 +127,7 @@ class DatabaseAPI {
   }
 
   async getTableSchema(nodeId: string, tableName: string): Promise<ColumnSchema[]> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/schema`,
       {
         method: 'GET',
@@ -148,7 +149,7 @@ class DatabaseAPI {
     tableName: string,
     column: ColumnSchema
   ): Promise<void> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/columns`,
       {
         method: 'POST',
@@ -168,7 +169,7 @@ class DatabaseAPI {
     tableName: string,
     columnName: string
   ): Promise<void> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/columns/${columnName}`,
       {
         method: 'DELETE',
@@ -189,7 +190,7 @@ class DatabaseAPI {
     columns: string[],
     unique: boolean = false
   ): Promise<void> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/indexes`,
       {
         method: 'POST',
@@ -205,7 +206,7 @@ class DatabaseAPI {
   }
 
   async dropIndex(nodeId: string, indexName: string): Promise<void> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/indexes/${indexName}`,
       {
         method: 'DELETE',
@@ -224,7 +225,7 @@ class DatabaseAPI {
     query: string,
     params: any[] = []
   ): Promise<{ rows: any[]; rowCount: number; fields: any[] }> {
-    const response = await fetch(`${API_BASE_URL}/database/${nodeId}/query`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/query`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ query, params }),
@@ -243,7 +244,7 @@ class DatabaseAPI {
     tableName: string,
     data: Record<string, any>
   ): Promise<any> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/data`,
       {
         method: 'POST',
@@ -279,7 +280,7 @@ class DatabaseAPI {
     if (options.limit) params.set('limit', options.limit.toString());
     if (options.offset) params.set('offset', options.offset.toString());
 
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/data?${params.toString()}`,
       {
         method: 'GET',
@@ -302,7 +303,7 @@ class DatabaseAPI {
     data: Record<string, any>,
     where: Record<string, any>
   ): Promise<number> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/data`,
       {
         method: 'PUT',
@@ -325,7 +326,7 @@ class DatabaseAPI {
     tableName: string,
     where: Record<string, any>
   ): Promise<number> {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/data`,
       {
         method: 'DELETE',
