@@ -687,6 +687,9 @@ function generatePreviewHtml(tables: DbTable[], relations: DbRelation[], title: 
 }
 
 /* ─── Main Component ─── */
+// Dedupe create per node.id (e.g. React double-mount in dev) — one create per node per session
+const attemptedCreateByNodeId = new Set<string>();
+
 interface Props { node: CanvasNode; onClose: () => void; }
 
 export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
@@ -699,10 +702,13 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
     .reduce((acc, n) => ({ ...acc, ...(n.envVars || {}) }), {} as Record<string, string>);
 
   useEffect(() => {
-    if (!databaseNode.isInitialized && !databaseNode.isInitializing) {
-      databaseNode.initializeDatabase(node.title, projectId || undefined);
-    }
-  }, [databaseNode, node.title, projectId]);
+    if (databaseNode.isInitialized || databaseNode.isInitializing) return;
+    if (attemptedCreateByNodeId.has(node.id)) return;
+    attemptedCreateByNodeId.add(node.id);
+    databaseNode
+      .initializeDatabase(node.title)
+      .catch(() => attemptedCreateByNodeId.delete(node.id));
+  }, [databaseNode.isInitialized, databaseNode.isInitializing, databaseNode.initializeDatabase, node.id, node.title, projectId]);
 
   const [dbEngine, setDbEngine] = useState<DbEngine>(() => {
     const parsed = parseSchema(node);
