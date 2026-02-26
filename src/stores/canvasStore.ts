@@ -86,7 +86,7 @@ interface CanvasState {
   updateNode: (id: string, updates: Partial<CanvasNode>) => void;
   removeNode: (id: string) => Promise<void>;
   duplicateNode: (id: string) => void;
-  clearAll: () => Promise<void>;
+  clearAll: () => void;
   selectNode: (id: string | null) => void;
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
@@ -110,7 +110,7 @@ interface CanvasState {
   disconnectElementLink: (sourceNodeId: string, targetNodeId: string) => void;
   setShowClearConfirm: (show: boolean) => void;
   setProjectId: (id: string | null) => void;
-  loadProject: (id: string) => Promise<void>;
+  loadProject: (id: string) => void;
   saveProject: () => void;
 }
 
@@ -304,17 +304,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
-  clearAll: async () => {
-    const nodes = get().nodes;
-    const databaseNodeIds = nodes.filter((n) => n.type === 'database').map((n) => n.id);
-    try {
-      const { databaseAPI } = await import('@/lib/database-api');
-      await Promise.allSettled(
-        databaseNodeIds.map((id) => databaseAPI.deleteDatabase(id).catch((err) => console.error('Failed to delete database for node', id, err)))
-      );
-    } catch (error) {
-      console.error('Failed to delete databases on clear:', error);
-    }
+  clearAll: () => {
     set({ nodes: [], selectedNodeId: null, showClearConfirm: false });
     localStorage.removeItem('canvas_nodes');
     localStorage.removeItem('node_counter');
@@ -381,27 +371,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ projectId: id });
   },
 
-  loadProject: async (id) => {
+  loadProject: (id) => {
     try {
       const projects = JSON.parse(localStorage.getItem('canvas_projects') || '{}');
       const project = projects[id];
       if (project) {
-        const nextNodes = project.nodes || [];
-        const nextIds = new Set(nextNodes.map((n: CanvasNode) => n.id));
-        const currentNodes = get().nodes;
-        const databaseNodesRemoved = currentNodes.filter((n) => n.type === 'database' && !nextIds.has(n.id));
-        try {
-          const { databaseAPI } = await import('@/lib/database-api');
-          await Promise.allSettled(
-            databaseNodesRemoved.map((n) =>
-              databaseAPI.deleteDatabase(n.id).catch((err) => console.error('Failed to delete database for node', n.id, err))
-            )
-          );
-        } catch (error) {
-          console.error('Failed to delete databases on project load:', error);
-        }
         set({
-          nodes: nextNodes,
+          nodes: project.nodes || [],
           projectId: id,
           selectedNodeId: null,
         });

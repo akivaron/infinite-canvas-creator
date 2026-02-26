@@ -1,5 +1,16 @@
-import { query as metaQuery } from '../config/database.js';
-import { sandboxPool } from '../config/sandboxDatabase.js';
+import pkg from 'pg';
+const { Pool } = pkg;
+
+const mainPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+interface DatabaseSchema {
+  nodeId: string;
+  databaseName: string;
+  tables: TableSchema[];
+  createdAt: Date;
+}
 
 interface TableSchema {
   name: string;
@@ -27,51 +38,37 @@ interface IndexSchema {
 }
 
 class DatabaseManager {
-  /**
-   * Cache of schema names per (userId,nodeId) pair.
-   * Key format: `${userId}:${nodeId}`
-   */
   private databases: Map<string, string> = new Map();
-
-  /**
-   * Run query against sandbox database (where user schemas live).
-   * In production, SANDBOX_DATABASE_URL should point to a separate DB from DATABASE_URL.
-   */
-  private async sandboxQuery(sql: string, params: any[] = []) {
-    try {
-      const result = await sandboxPool.query(sql, params);
-      return result;
-    } catch (error) {
-      console.error('Sandbox query error:', error);
-      throw error;
-    }
-  }
 
   private sanitizeName(name: string): string {
     return name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
   }
 
-  async createDatabase(userId: string, nodeId: string, name: string): Promise<string> {
-    const sanitizedNodeId = this.sanitizeName(nodeId.replace(/-/g, '_'));
-    const sanitizedUserId = userId.replace(/-/g, '_').toLowerCase();
-    const schemaName = `db_${sanitizedUserId}_${sanitizedNodeId}`;
+  private async executeQuery(query: string, params: any[] = []) {
+    try {
+      const result = await mainPool.query(query, params);
+      return result;
+    } catch (error) {
+      console.error('Database query error:', error);
+      throw error;
+    }
+  }
+
+  async createDatabase(nodeId: string, name: string): Promise<string> {
+    const sanitizedName = this.sanitizeName(name);
+    const schemaName = `node_db_${sanitizedName}_${nodeId.slice(0, 8)}`;
 
     try {
-      // Create schema in sandbox DB
-      await this.sandboxQuery(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+      await this.executeQuery(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
 
-      // Track mapping in main app DB
-      await metaQuery(
-        `INSERT INTO database_nodes (node_id, user_id, schema_name, display_name, created_at)
-         VALUES ($1, $2, $3, $4, NOW())
-         ON CONFLICT (node_id) DO UPDATE
-           SET schema_name = EXCLUDED.schema_name,
-               display_name = EXCLUDED.display_name,
-               updated_at = NOW()`,
-        [nodeId, userId, schemaName, name]
+      await this.executeQuery(
+        `INSERT INTO database_nodes (node_id, schema_name, display_name, created_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (node_id) DO UPDATE SET schema_name = $2, display_name = $3`,
+        [nodeId, schemaName, name]
       );
 
-      this.databases.set(`${userId}:${nodeId}`, schemaName);
+      this.databases.set(nodeId, schemaName);
       return schemaName;
     } catch (error) {
       console.error('Failed to create database:', error);
@@ -79,11 +76,11 @@ class DatabaseManager {
     }
   }
 
-  async deleteDatabase(userId: string, nodeId: string): Promise<void> {
+  async deleteDatabase(nodeId: string): Promise<void> {
     try {
-      const result = await metaQuery(
-        'SELECT schema_name FROM database_nodes WHERE node_id = $1 AND user_id = $2',
-        [nodeId, userId]
+      const result = await this.executeQuery(
+        'SELECT schema_name FROM database_nodes WHERE node_id = $1',
+        [nodeId]
       );
 
       if (result.rows.length === 0) {
@@ -92,36 +89,34 @@ class DatabaseManager {
 
       const schemaName = result.rows[0].schema_name;
 
-      await this.sandboxQuery(`DROP SCHEMA IF EXISTS ${schemaName} CASCADE`);
+      await this.executeQuery(`DROP SCHEMA IF EXISTS ${schemaName} CASCADE`);
 
-      await metaQuery(
-        'DELETE FROM database_nodes WHERE node_id = $1 AND user_id = $2',
-        [nodeId, userId]
+      await this.executeQuery(
+        'DELETE FROM database_nodes WHERE node_id = $1',
+        [nodeId]
       );
 
-      this.databases.delete(`${userId}:${nodeId}`);
+      this.databases.delete(nodeId);
     } catch (error) {
       console.error('Failed to delete database:', error);
       throw new Error('Failed to delete database schema');
     }
   }
 
-  async getSchema(userId: string, nodeId: string): Promise<string | null> {
-    const cacheKey = `${userId}:${nodeId}`;
-
-    if (this.databases.has(cacheKey)) {
-      return this.databases.get(cacheKey) || null;
+  async getSchema(nodeId: string): Promise<string | null> {
+    if (this.databases.has(nodeId)) {
+      return this.databases.get(nodeId) || null;
     }
 
     try {
-      const result = await metaQuery(
-        'SELECT schema_name FROM database_nodes WHERE node_id = $1 AND user_id = $2',
-        [nodeId, userId]
+      const result = await this.executeQuery(
+        'SELECT schema_name FROM database_nodes WHERE node_id = $1',
+        [nodeId]
       );
 
       if (result.rows.length > 0) {
         const schemaName = result.rows[0].schema_name;
-        this.databases.set(cacheKey, schemaName);
+        this.databases.set(nodeId, schemaName);
         return schemaName;
       }
 
@@ -133,12 +128,11 @@ class DatabaseManager {
   }
 
   async createTable(
-    userId: string,
     nodeId: string,
     tableName: string,
     columns: ColumnSchema[]
   ): Promise<void> {
-    const schema = await this.getSchema(userId, nodeId);
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
@@ -162,26 +156,25 @@ class DatabaseManager {
     const allDefs = [...columnDefs, ...foreignKeys].join(', ');
     const query = `CREATE TABLE IF NOT EXISTS ${schema}.${sanitizedTableName} (${allDefs})`;
 
-    await this.sandboxQuery(query);
+    await this.executeQuery(query);
   }
 
-  async dropTable(userId: string, nodeId: string, tableName: string): Promise<void> {
-    const schema = await this.getSchema(userId, nodeId);
+  async dropTable(nodeId: string, tableName: string): Promise<void> {
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
 
     const sanitizedTableName = this.sanitizeName(tableName);
-    await this.sandboxQuery(`DROP TABLE IF EXISTS ${schema}.${sanitizedTableName} CASCADE`);
+    await this.executeQuery(`DROP TABLE IF EXISTS ${schema}.${sanitizedTableName} CASCADE`);
   }
 
   async addColumn(
-    userId: string,
     nodeId: string,
     tableName: string,
     column: ColumnSchema
   ): Promise<void> {
-    const schema = await this.getSchema(userId, nodeId);
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
@@ -191,19 +184,19 @@ class DatabaseManager {
     if (!column.nullable) columnDef += ' NOT NULL';
     if (column.defaultValue) columnDef += ` DEFAULT ${column.defaultValue}`;
 
-    await this.sandboxQuery(
+    await this.executeQuery(
       `ALTER TABLE ${schema}.${sanitizedTableName} ADD COLUMN IF NOT EXISTS ${columnDef}`
     );
 
     if (column.unique) {
-      await this.sandboxQuery(
+      await this.executeQuery(
         `CREATE UNIQUE INDEX IF NOT EXISTS ${sanitizedTableName}_${column.name}_unique
          ON ${schema}.${sanitizedTableName}(${column.name})`
       );
     }
 
     if (column.references) {
-      await this.sandboxQuery(
+      await this.executeQuery(
         `ALTER TABLE ${schema}.${sanitizedTableName}
          ADD CONSTRAINT ${sanitizedTableName}_${column.name}_fkey
          FOREIGN KEY (${column.name})
@@ -213,31 +206,29 @@ class DatabaseManager {
   }
 
   async dropColumn(
-    userId: string,
     nodeId: string,
     tableName: string,
     columnName: string
   ): Promise<void> {
-    const schema = await this.getSchema(userId, nodeId);
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
 
     const sanitizedTableName = this.sanitizeName(tableName);
-    await this.sandboxQuery(
+    await this.executeQuery(
       `ALTER TABLE ${schema}.${sanitizedTableName} DROP COLUMN IF EXISTS ${columnName} CASCADE`
     );
   }
 
   async createIndex(
-    userId: string,
     nodeId: string,
     tableName: string,
     indexName: string,
     columns: string[],
     unique: boolean = false
   ): Promise<void> {
-    const schema = await this.getSchema(userId, nodeId);
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
@@ -246,28 +237,28 @@ class DatabaseManager {
     const uniqueStr = unique ? 'UNIQUE' : '';
     const columnList = columns.join(', ');
 
-    await this.sandboxQuery(
+    await this.executeQuery(
       `CREATE ${uniqueStr} INDEX IF NOT EXISTS ${indexName}
        ON ${schema}.${sanitizedTableName}(${columnList})`
     );
   }
 
-  async dropIndex(userId: string, nodeId: string, indexName: string): Promise<void> {
-    const schema = await this.getSchema(userId, nodeId);
+  async dropIndex(nodeId: string, indexName: string): Promise<void> {
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
 
-    await this.sandboxQuery(`DROP INDEX IF EXISTS ${schema}.${indexName}`);
+    await this.executeQuery(`DROP INDEX IF EXISTS ${schema}.${indexName}`);
   }
 
-  async listTables(userId: string, nodeId: string): Promise<string[]> {
-    const schema = await this.getSchema(userId, nodeId);
+  async listTables(nodeId: string): Promise<string[]> {
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       return [];
     }
 
-    const result = await this.sandboxQuery(
+    const result = await this.executeQuery(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = $1 AND table_type = 'BASE TABLE'`,
       [schema]
@@ -276,14 +267,14 @@ class DatabaseManager {
     return result.rows.map(row => row.table_name);
   }
 
-  async getTableSchema(userId: string, nodeId: string, tableName: string): Promise<ColumnSchema[]> {
-    const schema = await this.getSchema(userId, nodeId);
+  async getTableSchema(nodeId: string, tableName: string): Promise<ColumnSchema[]> {
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       return [];
     }
 
     const sanitizedTableName = this.sanitizeName(tableName);
-    const result = await this.sandboxQuery(
+    const result = await this.executeQuery(
       `SELECT
         column_name,
         data_type,
@@ -309,42 +300,36 @@ class DatabaseManager {
     }));
   }
 
-  /**
-   * Runs arbitrary SQL in the user's schema. Uses app DB role; user can still
-   * reference public.* or other schemas. See DATABASE_SANDBOX_SECURITY.md.
-   */
   async executeSQL(
-    userId: string,
     nodeId: string,
     query: string,
     params: any[] = []
   ): Promise<any> {
-    const schema = await this.getSchema(userId, nodeId);
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
 
-    await this.sandboxQuery(`SET search_path TO ${schema}`);
+    await this.executeQuery(`SET search_path TO ${schema}`);
 
     try {
-      const result = await this.sandboxQuery(query, params);
+      const result = await this.executeQuery(query, params);
       return {
         rows: result.rows,
         rowCount: result.rowCount,
         fields: result.fields?.map(f => ({ name: f.name, dataType: f.dataTypeID })),
       };
     } finally {
-      await this.sandboxQuery('RESET search_path');
+      await this.executeQuery('RESET search_path');
     }
   }
 
   async insertData(
-    userId: string,
     nodeId: string,
     tableName: string,
     data: Record<string, any>
   ): Promise<any> {
-    const schema = await this.getSchema(userId, nodeId);
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
@@ -357,18 +342,17 @@ class DatabaseManager {
     const query = `INSERT INTO ${schema}.${sanitizedTableName} (${columns.join(', ')})
                    VALUES (${placeholders}) RETURNING *`;
 
-    const result = await this.sandboxQuery(query, values);
+    const result = await this.executeQuery(query, values);
     return result.rows[0];
   }
 
   async updateData(
-    userId: string,
     nodeId: string,
     tableName: string,
     data: Record<string, any>,
     where: Record<string, any>
   ): Promise<number> {
-    const schema = await this.getSchema(userId, nodeId);
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
@@ -385,17 +369,16 @@ class DatabaseManager {
     const values = [...Object.values(data), ...Object.values(where)];
     const query = `UPDATE ${schema}.${sanitizedTableName} SET ${setColumns} WHERE ${whereColumns}`;
 
-    const result = await this.sandboxQuery(query, values);
+    const result = await this.executeQuery(query, values);
     return result.rowCount || 0;
   }
 
   async deleteData(
-    userId: string,
     nodeId: string,
     tableName: string,
     where: Record<string, any>
   ): Promise<number> {
-    const schema = await this.getSchema(userId, nodeId);
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
@@ -408,12 +391,11 @@ class DatabaseManager {
     const values = Object.values(where);
     const query = `DELETE FROM ${schema}.${sanitizedTableName} WHERE ${whereColumns}`;
 
-    const result = await this.sandboxQuery(query, values);
+    const result = await this.executeQuery(query, values);
     return result.rowCount || 0;
   }
 
   async queryData(
-    userId: string,
     nodeId: string,
     tableName: string,
     options: {
@@ -424,7 +406,7 @@ class DatabaseManager {
       offset?: number;
     } = {}
   ): Promise<any[]> {
-    const schema = await this.getSchema(userId, nodeId);
+    const schema = await this.getSchema(nodeId);
     if (!schema) {
       throw new Error('Database schema not found');
     }
@@ -454,7 +436,7 @@ class DatabaseManager {
       query += ` OFFSET ${options.offset}`;
     }
 
-    const result = await this.sandboxQuery(query, params);
+    const result = await this.executeQuery(query, params);
     return result.rows;
   }
 }

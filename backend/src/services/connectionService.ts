@@ -59,24 +59,6 @@ export class ConnectionService {
       [nodeId]
     );
   }
-
-  /**
-   * Returns true if there is a connection between nodeA and nodeB in the given project
-   * (direction-agnostic: either A→B or B→A).
-   */
-  async hasConnection(projectId: string, nodeAId: string, nodeBId: string): Promise<boolean> {
-    const result = await db.query(
-      `SELECT 1 FROM canvas_connections
-       WHERE project_id = $1
-         AND (
-           (source_node_id = $2 AND target_node_id = $3)
-           OR (source_node_id = $3 AND target_node_id = $2)
-         )
-       LIMIT 1`,
-      [projectId, nodeAId, nodeBId]
-    );
-    return result.rows.length > 0;
-  }
 }
 
 export const connectionService = new ConnectionService();
