@@ -14,6 +14,16 @@ import {
 import { useCanvasStore, type CanvasNode } from '@/stores/canvasStore';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDatabaseNode } from '@/hooks/use-database-node';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 /* ─── Database Engine Types ─── */
 type DbEngine = 'sql' | 'nosql' | 'vector' | 'graph' | 'timeseries' | 'keyvalue';
@@ -695,6 +705,30 @@ interface Props { node: CanvasNode; onClose: () => void; }
 export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
   const { updateNode, nodes, projectId } = useCanvasStore();
   const databaseNode = useDatabaseNode(node.id);
+
+  const hasConnectedNodes = nodes.some(
+    (n) =>
+      n.id !== node.id &&
+      (n.connectedTo.includes(node.id) || node.connectedTo.includes(n.id))
+  );
+  const [showSaveWarning, setShowSaveWarning] = useState(false);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    let isSaved = true;
+    try {
+      const raw = localStorage.getItem('canvas_projects');
+      const projects = raw ? JSON.parse(raw) : {};
+      isSaved = !!projects[projectId];
+    } catch {
+      isSaved = false;
+    }
+
+    if (!isSaved && hasConnectedNodes) {
+      setShowSaveWarning(true);
+    }
+  }, [projectId, hasConnectedNodes]);
 
   // Find environment variables from connected nodes
   const connectedEnvVars = nodes
@@ -1596,6 +1630,31 @@ export const DatabaseVisualEditor = ({ node, onClose }: Props) => {
           )}
         </AnimatePresence>
       </div>
+
+      <AlertDialog open={showSaveWarning} onOpenChange={setShowSaveWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400" />
+              Unsaved project before database connections
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Kamu sudah menghubungkan node ini dengan node lain, tapi project belum disimpan.
+              Untuk memastikan koneksi dan database tersimpan dengan benar (termasuk akses dari node lain),
+              simpan project terlebih dahulu lalu lanjutkan mengedit database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="text-xs">Tutup</AlertDialogCancel>
+            <AlertDialogAction
+              className="text-xs"
+              onClick={() => setShowSaveWarning(false)}
+            >
+              Mengerti
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

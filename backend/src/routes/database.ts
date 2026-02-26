@@ -1,8 +1,32 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { databaseManager } from '../services/databaseManager.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { canAccessDatabase, getAccessibleDatabases } from '../services/databaseAccessService.js';
 
 const router = Router();
+
+/** When X-Project-Id and X-Client-Node-Id are present, require connection-based access for :nodeId routes */
+async function ensureDatabaseAccess(req: AuthRequest, res: Response, next: NextFunction) {
+  const nodeId = req.params.nodeId as string;
+  const userId = req.userId;
+  const rawProjectId = req.headers['x-project-id'];
+  const rawClientNodeId = req.headers['x-client-node-id'];
+  const projectId = typeof rawProjectId === 'string' ? rawProjectId : Array.isArray(rawProjectId) ? rawProjectId[0] : undefined;
+  const clientNodeId = typeof rawClientNodeId === 'string' ? rawClientNodeId : Array.isArray(rawClientNodeId) ? rawClientNodeId[0] : undefined;
+
+  if (!nodeId || !userId) return next();
+
+  if (projectId && clientNodeId) {
+    const allowed = await canAccessDatabase(userId, nodeId, { projectId, clientNodeId });
+    if (!allowed) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'This node is not connected to the requested database in the given project.',
+      });
+    }
+  }
+  next();
+}
 
 /**
  * @swagger
@@ -85,7 +109,32 @@ router.delete('/:nodeId', authenticateToken, async (req: AuthRequest, res: Respo
   }
 });
 
-router.get('/:nodeId/schema', authenticateToken, async (req: AuthRequest, res: Response) => {
+/**
+ * GET /api/database/accessible?projectId=...&clientNodeId=...
+ * Returns databases the client node can access (owned by user and connected in the project).
+ */
+router.get('/accessible', authenticateToken, async (req: AuthRequest, res: Response) => {
+  const userId = req.userId;
+  const projectId = req.query.projectId as string | undefined;
+  const clientNodeId = req.query.clientNodeId as string | undefined;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!projectId || !clientNodeId) {
+    return res.status(400).json({ error: 'projectId and clientNodeId are required' });
+  }
+
+  try {
+    const list = await getAccessibleDatabases(userId, projectId, clientNodeId);
+    res.json({ databases: list });
+  } catch (error: any) {
+    console.error('Get accessible databases error:', error);
+    res.status(500).json({ error: error.message || 'Failed to list accessible databases' });
+  }
+});
+
+router.get('/:nodeId/schema', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const userId = req.userId;
 
@@ -105,7 +154,7 @@ router.get('/:nodeId/schema', authenticateToken, async (req: AuthRequest, res: R
   }
 });
 
-router.get('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:nodeId/tables', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const userId = req.userId;
 
@@ -122,7 +171,7 @@ router.get('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: R
   }
 });
 
-router.post('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:nodeId/tables', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const userId = req.userId;
   const { tableName, columns } = req.body;
@@ -144,7 +193,7 @@ router.post('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: 
   }
 });
 
-router.delete('/:nodeId/tables/:tableName', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/:nodeId/tables/:tableName', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
   const userId = req.userId;
@@ -162,7 +211,7 @@ router.delete('/:nodeId/tables/:tableName', authenticateToken, async (req: AuthR
   }
 });
 
-router.get('/:nodeId/tables/:tableName/schema', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:nodeId/tables/:tableName/schema', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
   const userId = req.userId;
@@ -180,7 +229,7 @@ router.get('/:nodeId/tables/:tableName/schema', authenticateToken, async (req: A
   }
 });
 
-router.post('/:nodeId/tables/:tableName/columns', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:nodeId/tables/:tableName/columns', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
   const userId = req.userId;
@@ -203,7 +252,7 @@ router.post('/:nodeId/tables/:tableName/columns', authenticateToken, async (req:
   }
 });
 
-router.delete('/:nodeId/tables/:tableName/columns/:columnName', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/:nodeId/tables/:tableName/columns/:columnName', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
   const columnName = String(req.params.columnName);
@@ -222,7 +271,7 @@ router.delete('/:nodeId/tables/:tableName/columns/:columnName', authenticateToke
   }
 });
 
-router.post('/:nodeId/tables/:tableName/indexes', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:nodeId/tables/:tableName/indexes', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
   const userId = req.userId;
@@ -245,7 +294,7 @@ router.post('/:nodeId/tables/:tableName/indexes', authenticateToken, async (req:
   }
 });
 
-router.delete('/:nodeId/indexes/:indexName', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/:nodeId/indexes/:indexName', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const indexName = String(req.params.indexName);
   const userId = req.userId;
@@ -263,7 +312,7 @@ router.delete('/:nodeId/indexes/:indexName', authenticateToken, async (req: Auth
   }
 });
 
-router.post('/:nodeId/query', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:nodeId/query', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const { query, params } = req.body;
   const userId = req.userId;
@@ -285,7 +334,7 @@ router.post('/:nodeId/query', authenticateToken, async (req: AuthRequest, res: R
   }
 });
 
-router.post('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:nodeId/tables/:tableName/data', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
   const userId = req.userId;
@@ -308,7 +357,7 @@ router.post('/:nodeId/tables/:tableName/data', authenticateToken, async (req: Au
   }
 });
 
-router.get('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:nodeId/tables/:tableName/data', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
   const userId = req.userId;
@@ -334,7 +383,7 @@ router.get('/:nodeId/tables/:tableName/data', authenticateToken, async (req: Aut
   }
 });
 
-router.put('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.put('/:nodeId/tables/:tableName/data', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
   const userId = req.userId;
@@ -357,7 +406,7 @@ router.put('/:nodeId/tables/:tableName/data', authenticateToken, async (req: Aut
   }
 });
 
-router.delete('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/:nodeId/tables/:tableName/data', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
   const userId = req.userId;
