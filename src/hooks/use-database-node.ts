@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { createDatabaseNode, getDatabaseNode, executeSQLInNode, getNodeTables, deleteDatabaseNode } from '@/lib/database-nodes';
+import { databaseAPI } from '@/lib/database-api';
 import { useToast } from '@/hooks/use-toast';
 
 export function useDatabaseNode(nodeId: string) {
@@ -9,58 +9,56 @@ export function useDatabaseNode(nodeId: string) {
   const [tables, setTables] = useState<Array<{ table_name: string; table_type: string }>>([]);
   const { toast } = useToast();
 
-  const initializeDatabase = useCallback(async (displayName: string, projectId?: string) => {
-    if (isInitializing || isInitialized) return;
+  const initializeDatabase = useCallback(
+    async (displayName: string) => {
+      if (isInitializing || isInitialized) return;
 
-    setIsInitializing(true);
-    try {
-      const result = await createDatabaseNode({
-        nodeId,
-        displayName,
-        projectId,
-      });
-
-      setSchemaName(result.schema_name);
-      setIsInitialized(true);
-
-      toast({
-        title: 'Database Created',
-        description: `Isolated database schema "${result.schema_name}" has been created successfully.`,
-      });
-
-      return result;
-    } catch (error: any) {
-      if (error.message?.includes('duplicate key')) {
+      setIsInitializing(true);
+      try {
+        // First try to see if schema already exists for this node
         try {
-          const existingNode = await getDatabaseNode(nodeId);
-          setSchemaName(existingNode.schema_name);
-          setIsInitialized(true);
-          return existingNode;
+          const existing = await databaseAPI.getSchema(nodeId);
+          if (existing?.schemaName) {
+            setSchemaName(existing.schemaName);
+            setIsInitialized(true);
+            return existing;
+          }
         } catch {
-          toast({
-            title: 'Error',
-            description: 'Failed to initialize database',
-            variant: 'destructive',
-          });
+          // ignore and fall through to create
         }
-      } else {
+
+        const created = await databaseAPI.createDatabase(nodeId, displayName);
+        setSchemaName(created.schemaName);
+        setIsInitialized(true);
+
+        toast({
+          title: 'Database Created',
+          description: `Isolated database schema "${created.schemaName}" has been created successfully.`,
+        });
+
+        return created;
+      } catch (error: any) {
         toast({
           title: 'Error',
           description: error.message || 'Failed to create database',
           variant: 'destructive',
         });
+      } finally {
+        setIsInitializing(false);
       }
-    } finally {
-      setIsInitializing(false);
-    }
-  }, [nodeId, isInitializing, isInitialized, toast]);
+    },
+    [nodeId, isInitializing, isInitialized, toast]
+  );
 
   const checkIfExists = useCallback(async () => {
     try {
-      const node = await getDatabaseNode(nodeId);
-      setSchemaName(node.schema_name);
-      setIsInitialized(true);
-      return true;
+      const existing = await databaseAPI.getSchema(nodeId);
+      if (existing?.schemaName) {
+        setSchemaName(existing.schemaName);
+        setIsInitialized(true);
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
@@ -72,7 +70,7 @@ export function useDatabaseNode(nodeId: string) {
     }
 
     try {
-      const result = await executeSQLInNode(nodeId, sql);
+      const result = await databaseAPI.executeSQL(nodeId, sql);
       return result;
     } catch (error: any) {
       toast({
@@ -88,8 +86,8 @@ export function useDatabaseNode(nodeId: string) {
     if (!isInitialized) return;
 
     try {
-      const tableList = await getNodeTables(nodeId);
-      setTables(tableList);
+      const tableNames = await databaseAPI.listTables(nodeId);
+      setTables(tableNames.map(name => ({ table_name: name, table_type: 'BASE TABLE' })));
     } catch (error: any) {
       console.error('Failed to refresh tables:', error);
     }
@@ -97,7 +95,7 @@ export function useDatabaseNode(nodeId: string) {
 
   const deleteDatabase = useCallback(async () => {
     try {
-      await deleteDatabaseNode(nodeId);
+      await databaseAPI.deleteDatabase(nodeId);
       setIsInitialized(false);
       setSchemaName(null);
       setTables([]);

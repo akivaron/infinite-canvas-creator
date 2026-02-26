@@ -1,8 +1,32 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { databaseManager } from '../services/databaseManager.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { canAccessDatabase, getAccessibleDatabases } from '../services/databaseAccessService.js';
 
 const router = Router();
+
+/** When X-Project-Id and X-Client-Node-Id are present, require connection-based access for :nodeId routes */
+async function ensureDatabaseAccess(req: AuthRequest, res: Response, next: NextFunction) {
+  const nodeId = req.params.nodeId as string;
+  const userId = req.userId;
+  const rawProjectId = req.headers['x-project-id'];
+  const rawClientNodeId = req.headers['x-client-node-id'];
+  const projectId = typeof rawProjectId === 'string' ? rawProjectId : Array.isArray(rawProjectId) ? rawProjectId[0] : undefined;
+  const clientNodeId = typeof rawClientNodeId === 'string' ? rawClientNodeId : Array.isArray(rawClientNodeId) ? rawClientNodeId[0] : undefined;
+
+  if (!nodeId || !userId) return next();
+
+  if (projectId && clientNodeId) {
+    const allowed = await canAccessDatabase(userId, nodeId, { projectId, clientNodeId });
+    if (!allowed) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'This node is not connected to the requested database in the given project.',
+      });
+    }
+  }
+  next();
+}
 
 /**
  * @swagger
@@ -49,13 +73,18 @@ const router = Router();
  */
 router.post('/create', authenticateToken, async (req: AuthRequest, res: Response) => {
   const { nodeId, name } = req.body;
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   if (!nodeId || !name) {
     return res.status(400).json({ error: 'nodeId and name are required' });
   }
 
   try {
-    const schemaName = await databaseManager.createDatabase(nodeId as string, name as string);
+    const schemaName = await databaseManager.createDatabase(userId, nodeId as string, name as string);
     res.json({ schemaName, message: 'Database created successfully' });
   } catch (error: any) {
     console.error('Create database error:', error);
@@ -65,9 +94,14 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
 
 router.delete('/:nodeId', authenticateToken, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
-    await databaseManager.deleteDatabase(nodeId);
+    await databaseManager.deleteDatabase(userId, nodeId);
     res.json({ message: 'Database deleted successfully' });
   } catch (error: any) {
     console.error('Delete database error:', error);
@@ -75,11 +109,41 @@ router.delete('/:nodeId', authenticateToken, async (req: AuthRequest, res: Respo
   }
 });
 
-router.get('/:nodeId/schema', authenticateToken, async (req: AuthRequest, res: Response) => {
-  const nodeId = String(req.params.nodeId);
+/**
+ * GET /api/database/accessible?projectId=...&clientNodeId=...
+ * Returns databases the client node can access (owned by user and connected in the project).
+ */
+router.get('/accessible', authenticateToken, async (req: AuthRequest, res: Response) => {
+  const userId = req.userId;
+  const projectId = req.query.projectId as string | undefined;
+  const clientNodeId = req.query.clientNodeId as string | undefined;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!projectId || !clientNodeId) {
+    return res.status(400).json({ error: 'projectId and clientNodeId are required' });
+  }
 
   try {
-    const schemaName = await databaseManager.getSchema(nodeId);
+    const list = await getAccessibleDatabases(userId, projectId, clientNodeId);
+    res.json({ databases: list });
+  } catch (error: any) {
+    console.error('Get accessible databases error:', error);
+    res.status(500).json({ error: error.message || 'Failed to list accessible databases' });
+  }
+});
+
+router.get('/:nodeId/schema', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
+  const nodeId = String(req.params.nodeId);
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const schemaName = await databaseManager.getSchema(userId, nodeId);
     if (!schemaName) {
       return res.status(404).json({ error: 'Database not found' });
     }
@@ -90,11 +154,16 @@ router.get('/:nodeId/schema', authenticateToken, async (req: AuthRequest, res: R
   }
 });
 
-router.get('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:nodeId/tables', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
-    const tables = await databaseManager.listTables(nodeId);
+    const tables = await databaseManager.listTables(userId, nodeId);
     res.json({ tables });
   } catch (error: any) {
     console.error('List tables error:', error);
@@ -102,16 +171,21 @@ router.get('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: R
   }
 });
 
-router.post('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:nodeId/tables', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
+  const userId = req.userId;
   const { tableName, columns } = req.body;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   if (!tableName || !columns || !Array.isArray(columns)) {
     return res.status(400).json({ error: 'tableName and columns array are required' });
   }
 
   try {
-    await databaseManager.createTable(nodeId, tableName as string, columns);
+    await databaseManager.createTable(userId, nodeId, tableName as string, columns);
     res.json({ message: 'Table created successfully' });
   } catch (error: any) {
     console.error('Create table error:', error);
@@ -119,12 +193,17 @@ router.post('/:nodeId/tables', authenticateToken, async (req: AuthRequest, res: 
   }
 });
 
-router.delete('/:nodeId/tables/:tableName', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/:nodeId/tables/:tableName', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
-    await databaseManager.dropTable(nodeId, tableName);
+    await databaseManager.dropTable(userId, nodeId, tableName);
     res.json({ message: 'Table deleted successfully' });
   } catch (error: any) {
     console.error('Drop table error:', error);
@@ -132,12 +211,17 @@ router.delete('/:nodeId/tables/:tableName', authenticateToken, async (req: AuthR
   }
 });
 
-router.get('/:nodeId/tables/:tableName/schema', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:nodeId/tables/:tableName/schema', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
-    const schema = await databaseManager.getTableSchema(nodeId, tableName);
+    const schema = await databaseManager.getTableSchema(userId, nodeId, tableName);
     res.json({ schema });
   } catch (error: any) {
     console.error('Get table schema error:', error);
@@ -145,17 +229,22 @@ router.get('/:nodeId/tables/:tableName/schema', authenticateToken, async (req: A
   }
 });
 
-router.post('/:nodeId/tables/:tableName/columns', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:nodeId/tables/:tableName/columns', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
+  const userId = req.userId;
   const { column } = req.body;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   if (!column || !column.name || !column.type) {
     return res.status(400).json({ error: 'column with name and type is required' });
   }
 
   try {
-    await databaseManager.addColumn(nodeId, tableName, column);
+    await databaseManager.addColumn(userId, nodeId, tableName, column);
     res.json({ message: 'Column added successfully' });
   } catch (error: any) {
     console.error('Add column error:', error);
@@ -163,13 +252,18 @@ router.post('/:nodeId/tables/:tableName/columns', authenticateToken, async (req:
   }
 });
 
-router.delete('/:nodeId/tables/:tableName/columns/:columnName', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/:nodeId/tables/:tableName/columns/:columnName', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
   const columnName = String(req.params.columnName);
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
-    await databaseManager.dropColumn(nodeId, tableName, columnName);
+    await databaseManager.dropColumn(userId, nodeId, tableName, columnName);
     res.json({ message: 'Column deleted successfully' });
   } catch (error: any) {
     console.error('Drop column error:', error);
@@ -177,17 +271,22 @@ router.delete('/:nodeId/tables/:tableName/columns/:columnName', authenticateToke
   }
 });
 
-router.post('/:nodeId/tables/:tableName/indexes', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:nodeId/tables/:tableName/indexes', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
+  const userId = req.userId;
   const { indexName, columns, unique } = req.body;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   if (!indexName || !columns || !Array.isArray(columns)) {
     return res.status(400).json({ error: 'indexName and columns array are required' });
   }
 
   try {
-    await databaseManager.createIndex(nodeId, tableName, indexName as string, columns, unique);
+    await databaseManager.createIndex(userId, nodeId, tableName, indexName as string, columns, unique);
     res.json({ message: 'Index created successfully' });
   } catch (error: any) {
     console.error('Create index error:', error);
@@ -195,12 +294,17 @@ router.post('/:nodeId/tables/:tableName/indexes', authenticateToken, async (req:
   }
 });
 
-router.delete('/:nodeId/indexes/:indexName', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/:nodeId/indexes/:indexName', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const indexName = String(req.params.indexName);
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
-    await databaseManager.dropIndex(nodeId, indexName);
+    await databaseManager.dropIndex(userId, nodeId, indexName);
     res.json({ message: 'Index deleted successfully' });
   } catch (error: any) {
     console.error('Drop index error:', error);
@@ -208,16 +312,21 @@ router.delete('/:nodeId/indexes/:indexName', authenticateToken, async (req: Auth
   }
 });
 
-router.post('/:nodeId/query', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:nodeId/query', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const { query, params } = req.body;
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   if (!query) {
     return res.status(400).json({ error: 'query is required' });
   }
 
   try {
-    const result = await databaseManager.executeSQL(nodeId, query as string, params || []);
+    const result = await databaseManager.executeSQL(userId, nodeId, query as string, params || []);
     res.json(result);
   } catch (error: any) {
     console.error('Execute SQL error:', error);
@@ -225,17 +334,22 @@ router.post('/:nodeId/query', authenticateToken, async (req: AuthRequest, res: R
   }
 });
 
-router.post('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:nodeId/tables/:tableName/data', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
+  const userId = req.userId;
   const { data } = req.body;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   if (!data || typeof data !== 'object') {
     return res.status(400).json({ error: 'data object is required' });
   }
 
   try {
-    const result = await databaseManager.insertData(nodeId, tableName, data);
+    const result = await databaseManager.insertData(userId, nodeId, tableName, data);
     res.json({ data: result, message: 'Data inserted successfully' });
   } catch (error: any) {
     console.error('Insert data error:', error);
@@ -243,10 +357,15 @@ router.post('/:nodeId/tables/:tableName/data', authenticateToken, async (req: Au
   }
 });
 
-router.get('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:nodeId/tables/:tableName/data', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
+  const userId = req.userId;
   const { select, where, orderBy, limit, offset } = req.query;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
     const options: any = {};
@@ -256,7 +375,7 @@ router.get('/:nodeId/tables/:tableName/data', authenticateToken, async (req: Aut
     if (limit) options.limit = parseInt(String(limit));
     if (offset) options.offset = parseInt(String(offset));
 
-    const data = await databaseManager.queryData(nodeId, tableName, options);
+    const data = await databaseManager.queryData(userId, nodeId, tableName, options);
     res.json({ data });
   } catch (error: any) {
     console.error('Query data error:', error);
@@ -264,17 +383,22 @@ router.get('/:nodeId/tables/:tableName/data', authenticateToken, async (req: Aut
   }
 });
 
-router.put('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.put('/:nodeId/tables/:tableName/data', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
+  const userId = req.userId;
   const { data, where } = req.body;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   if (!data || !where || typeof data !== 'object' || typeof where !== 'object') {
     return res.status(400).json({ error: 'data and where objects are required' });
   }
 
   try {
-    const rowCount = await databaseManager.updateData(nodeId, tableName, data, where);
+    const rowCount = await databaseManager.updateData(userId, nodeId, tableName, data, where);
     res.json({ rowCount, message: 'Data updated successfully' });
   } catch (error: any) {
     console.error('Update data error:', error);
@@ -282,17 +406,22 @@ router.put('/:nodeId/tables/:tableName/data', authenticateToken, async (req: Aut
   }
 });
 
-router.delete('/:nodeId/tables/:tableName/data', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/:nodeId/tables/:tableName/data', authenticateToken, ensureDatabaseAccess, async (req: AuthRequest, res: Response) => {
   const nodeId = String(req.params.nodeId);
   const tableName = String(req.params.tableName);
+  const userId = req.userId;
   const { where } = req.body;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   if (!where || typeof where !== 'object') {
     return res.status(400).json({ error: 'where object is required' });
   }
 
   try {
-    const rowCount = await databaseManager.deleteData(nodeId, tableName, where);
+    const rowCount = await databaseManager.deleteData(userId, nodeId, tableName, where);
     res.json({ rowCount, message: 'Data deleted successfully' });
   } catch (error: any) {
     console.error('Delete data error:', error);

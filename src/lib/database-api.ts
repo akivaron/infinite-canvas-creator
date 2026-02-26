@@ -27,8 +27,20 @@ export interface IndexSchema {
   unique: boolean;
 }
 
+/** Optional context when calling as a node connected to a database (e.g. API/CLI node). */
+export interface DatabaseAccessContext {
+  projectId: string;
+  clientNodeId: string;
+}
+
+export interface AccessibleDatabase {
+  nodeId: string;
+  schemaName: string;
+  displayName: string;
+}
+
 class DatabaseAPI {
-  private getHeaders(): HeadersInit {
+  private getHeaders(context?: DatabaseAccessContext): HeadersInit {
     const token = localStorage.getItem('auth_token');
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -36,6 +48,13 @@ class DatabaseAPI {
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    if (context?.projectId) {
+      headers['X-Project-Id'] = context.projectId;
+    }
+    if (context?.clientNodeId) {
+      headers['X-Client-Node-Id'] = context.clientNodeId;
     }
 
     return headers;
@@ -68,10 +87,33 @@ class DatabaseAPI {
     }
   }
 
-  async getSchema(nodeId: string): Promise<{ schemaName: string }> {
-    const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/schema`, {
+  /**
+   * List databases that a client node (e.g. API/CLI) can access because they are connected in the project.
+   * Requires project and connections to be persisted to the backend.
+   */
+  async getAccessibleDatabases(
+    projectId: string,
+    clientNodeId: string
+  ): Promise<AccessibleDatabase[]> {
+    const url = `${API_BASE_URL}/database/accessible?projectId=${encodeURIComponent(projectId)}&clientNodeId=${encodeURIComponent(clientNodeId)}`;
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: this.getHeaders(),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to get accessible databases');
+    }
+
+    const result = await response.json();
+    return result.databases ?? [];
+  }
+
+  async getSchema(nodeId: string, context?: DatabaseAccessContext): Promise<{ schemaName: string }> {
+    const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/schema`, {
+      method: 'GET',
+      headers: this.getHeaders(context),
     });
 
     if (!response.ok) {
@@ -82,10 +124,10 @@ class DatabaseAPI {
     return await response.json();
   }
 
-  async listTables(nodeId: string): Promise<string[]> {
+  async listTables(nodeId: string, context?: DatabaseAccessContext): Promise<string[]> {
     const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/tables`, {
       method: 'GET',
-      headers: this.getHeaders(),
+      headers: this.getHeaders(context),
     });
 
     if (!response.ok) {
@@ -100,11 +142,12 @@ class DatabaseAPI {
   async createTable(
     nodeId: string,
     tableName: string,
-    columns: ColumnSchema[]
+    columns: ColumnSchema[],
+    context?: DatabaseAccessContext
   ): Promise<void> {
     const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/tables`, {
       method: 'POST',
-      headers: this.getHeaders(),
+      headers: this.getHeaders(context),
       body: JSON.stringify({ tableName, columns }),
     });
 
@@ -114,10 +157,10 @@ class DatabaseAPI {
     }
   }
 
-  async dropTable(nodeId: string, tableName: string): Promise<void> {
+  async dropTable(nodeId: string, tableName: string, context?: DatabaseAccessContext): Promise<void> {
     const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/tables/${tableName}`, {
       method: 'DELETE',
-      headers: this.getHeaders(),
+      headers: this.getHeaders(context),
     });
 
     if (!response.ok) {
@@ -126,12 +169,12 @@ class DatabaseAPI {
     }
   }
 
-  async getTableSchema(nodeId: string, tableName: string): Promise<ColumnSchema[]> {
+  async getTableSchema(nodeId: string, tableName: string, context?: DatabaseAccessContext): Promise<ColumnSchema[]> {
     const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/schema`,
       {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(context),
       }
     );
 
@@ -147,13 +190,14 @@ class DatabaseAPI {
   async addColumn(
     nodeId: string,
     tableName: string,
-    column: ColumnSchema
+    column: ColumnSchema,
+    context?: DatabaseAccessContext
   ): Promise<void> {
     const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/columns`,
       {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(context),
         body: JSON.stringify({ column }),
       }
     );
@@ -167,13 +211,14 @@ class DatabaseAPI {
   async dropColumn(
     nodeId: string,
     tableName: string,
-    columnName: string
+    columnName: string,
+    context?: DatabaseAccessContext
   ): Promise<void> {
     const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/columns/${columnName}`,
       {
         method: 'DELETE',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(context),
       }
     );
 
@@ -188,13 +233,14 @@ class DatabaseAPI {
     tableName: string,
     indexName: string,
     columns: string[],
-    unique: boolean = false
+    unique: boolean = false,
+    context?: DatabaseAccessContext
   ): Promise<void> {
     const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/indexes`,
       {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(context),
         body: JSON.stringify({ indexName, columns, unique }),
       }
     );
@@ -205,12 +251,12 @@ class DatabaseAPI {
     }
   }
 
-  async dropIndex(nodeId: string, indexName: string): Promise<void> {
+  async dropIndex(nodeId: string, indexName: string, context?: DatabaseAccessContext): Promise<void> {
     const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/indexes/${indexName}`,
       {
         method: 'DELETE',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(context),
       }
     );
 
@@ -223,11 +269,12 @@ class DatabaseAPI {
   async executeSQL(
     nodeId: string,
     query: string,
-    params: any[] = []
+    params: any[] = [],
+    context?: DatabaseAccessContext
   ): Promise<{ rows: any[]; rowCount: number; fields: any[] }> {
     const response = await fetchWithRetry(`${API_BASE_URL}/database/${nodeId}/query`, {
       method: 'POST',
-      headers: this.getHeaders(),
+      headers: this.getHeaders(context),
       body: JSON.stringify({ query, params }),
     });
 
@@ -242,13 +289,14 @@ class DatabaseAPI {
   async insertData(
     nodeId: string,
     tableName: string,
-    data: Record<string, any>
+    data: Record<string, any>,
+    context?: DatabaseAccessContext
   ): Promise<any> {
     const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/data`,
       {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(context),
         body: JSON.stringify({ data }),
       }
     );
@@ -271,7 +319,8 @@ class DatabaseAPI {
       orderBy?: string;
       limit?: number;
       offset?: number;
-    } = {}
+    } = {},
+    context?: DatabaseAccessContext
   ): Promise<any[]> {
     const params = new URLSearchParams();
     if (options.select) params.set('select', options.select.join(','));
@@ -284,7 +333,7 @@ class DatabaseAPI {
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/data?${params.toString()}`,
       {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(context),
       }
     );
 
@@ -301,13 +350,14 @@ class DatabaseAPI {
     nodeId: string,
     tableName: string,
     data: Record<string, any>,
-    where: Record<string, any>
+    where: Record<string, any>,
+    context?: DatabaseAccessContext
   ): Promise<number> {
     const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/data`,
       {
         method: 'PUT',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(context),
         body: JSON.stringify({ data, where }),
       }
     );
@@ -324,13 +374,14 @@ class DatabaseAPI {
   async deleteData(
     nodeId: string,
     tableName: string,
-    where: Record<string, any>
+    where: Record<string, any>,
+    context?: DatabaseAccessContext
   ): Promise<number> {
     const response = await fetchWithRetry(
       `${API_BASE_URL}/database/${nodeId}/tables/${tableName}/data`,
       {
         method: 'DELETE',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(context),
         body: JSON.stringify({ where }),
       }
     );
